@@ -18,6 +18,7 @@
  * call here ends with a user turn (or a user turn carrying functionResponses).
  */
 import "server-only";
+import { AsyncLocalStorage } from "node:async_hooks";
 import crypto from "node:crypto";
 import fs from "node:fs/promises";
 import path from "node:path";
@@ -34,6 +35,22 @@ const CACHE_ON = !/^(0|off|false|no)$/i.test(process.env.GEMINI_CACHE || "");
 const CACHE_DIR = path.join(process.cwd(), ".cache", "gemini");
 
 export const hasGemini = () => Boolean(process.env.GEMINI_API_KEY);
+
+// ---------- request time budget ----------
+// The browser stops waiting after a fixed time (lib/ai.ts) and falls back to on-device rules. Every
+// Gemini call made while handling one request shares that request's budget, so the fallback chain
+// gives up (and stops spending quota) before the browser does, instead of answering into the void.
+type Budget = { deadline: number; perModelMs: number };
+const budgetStore = new AsyncLocalStorage<Budget>();
+/** Run `fn` with a total time budget for all its Gemini calls (see lib/ai-server.ts handle). */
+export function withBudget<T>(totalMs: number, perModelMs: number, fn: () => Promise<T>): Promise<T> {
+  return budgetStore.run({ deadline: Date.now() + totalMs, perModelMs }, fn);
+}
+/** Below this, another model attempt can't finish in time; stop and let the browser fall back. */
+const MIN_ATTEMPT_MS = 2500;
+export class OutOfTimeError extends Error {
+  constructor() { super("Gemini ran out of time for this request"); }
+}
 
 export type Part =
   | { text: string }
@@ -90,25 +107,37 @@ export async function generate(opts: {
   model?: string;
   /** stay on `model` (no fallback): used for the later steps of a tool-calling run */
   pin?: boolean;
+  /** models to skip (e.g. ones that already failed this tool-calling run) */
+  exclude?: string[];
   timeoutMs?: number;
 }): Promise<{ parts: Part[]; content: Content; model: string }> {
   if (!hasGemini()) throw new Error("GEMINI_API_KEY is not set");
   const first = opts.model || MODEL;
-  const chain = opts.pin ? [first] : [first, ...FALLBACKS.filter((m) => m !== first)].filter((m) => !(opts.tools?.length && isGemma(m)));
+  const chain = opts.pin
+    ? [first]
+    : [first, ...FALLBACKS.filter((m) => m !== first)].filter((m) => !(opts.tools?.length && isGemma(m)) && !opts.exclude?.includes(m));
+  if (!chain.length) throw new Error("No Gemini model left to try");
   // try models that are not cooling down first; if every one is, still try them all (a quota may have reset)
   const order = [...chain.filter(usable), ...chain.filter((m) => !usable(m))];
+  const budget = budgetStore.getStore();
   let lastErr: unknown = null;
   for (const [i, model] of order.entries()) {
+    const normal = opts.timeoutMs ?? budget?.perModelMs ?? (i === 0 ? 20000 : 15000);
+    const left = budget ? budget.deadline - Date.now() : Infinity;
+    if (left < MIN_ATTEMPT_MS) throw lastErr instanceof GeminiError ? lastErr : new OutOfTimeError();
+    const timeout = Math.min(normal, left);
     try {
-      const out = await call(model, opts, i === 0 ? opts.timeoutMs ?? 20000 : 15000);
+      const out = await call(model, opts, timeout);
       bump(model, "ok");
       if (cooldown.get(model)?.until !== Infinity) cooldown.delete(model);
       return { ...out, model };
     } catch (e) {
       lastErr = e;
       bump(model, "fail");
-      // a 400 is usually about this request (bad image, too long), not the model: don't cool the model for it
-      if (!(e instanceof GeminiError && e.status === 400)) cool(model, e);
+      // a 400 is usually about this request (bad image, too long), not the model: don't cool the model for it.
+      // A timeout we cut short to fit the budget isn't the model's fault either.
+      const cutShort = !(e instanceof GeminiError) && timeout < normal;
+      if (!(e instanceof GeminiError && e.status === 400) && !cutShort) cool(model, e);
       if (opts.pin) break;
       console.warn(`[gemini] ${model} failed (${e instanceof GeminiError ? e.status : "network/timeout"}), trying the next model`);
     }

@@ -5,7 +5,8 @@
  * Suggestions that cite unknown facts or skip the reasoning are dropped (lib/strategy.ts cleanStrategies).
  */
 import { generateJSON, MODEL } from "@/lib/gemini";
-import { handle } from "@/lib/ai-server";
+import { BUDGET, handle } from "@/lib/ai-server";
+import { HttpError, arr, city as checkCity, obj, optArr, readBody, str } from "@/lib/validate";
 import type { Fact } from "@/lib/brokerage";
 import { cleanStrategies } from "@/lib/strategy";
 
@@ -37,11 +38,21 @@ Reply ONLY with JSON:
 }]}`;
 
 export async function POST(req: Request) {
-  const { city, facts = [], agents = [] } = (await req.json().catch(() => ({}))) as { city?: string; facts?: Fact[]; agents?: unknown[] };
   return handle(async () => {
+    const body = await readBody(req);
+    const city = checkCity(body.city);
+    const SOURCES = new Set(["Pebble sales", "Pebble customers", "CoStar"]);
+    // each suggestion must cite 2+ facts (lib/strategy.ts), so fewer than 2 can never produce an answer
+    const facts: Fact[] = arr(body.facts, "facts", { min: 2, max: 80 }, (f, n) => {
+      const o = obj(f, n);
+      const source = str(o.source, `${n}.source`, { max: 40 });
+      if (!SOURCES.has(source)) throw new HttpError(400, "bad-input", `${n}.source must be Pebble sales, Pebble customers or CoStar`);
+      return { id: str(o.id, `${n}.id`, { max: 40 }), label: str(o.label, `${n}.label`, { max: 200 }), value: str(String(o.value ?? ""), `${n}.value`, { max: 400 }), source: source as Fact["source"] };
+    });
+    const agents = optArr(body.agents, "agents", { max: 50 }, (a, n) => obj(a, n));
     const out = await generateJSON<{ strategies: unknown[] }>(SYSTEM, [
       { text: `Market: ${city}\nFACTS:\n${facts.map((f) => `[${f.id}] ${f.label}: ${f.value} (source: ${f.source})`).join("\n")}\nAGENTS THIS MONTH: ${JSON.stringify(agents)}` },
     ], MODEL);
     return { strategies: cleanStrategies(out.strategies, facts) };
-  });
+  }, BUDGET.long);
 }

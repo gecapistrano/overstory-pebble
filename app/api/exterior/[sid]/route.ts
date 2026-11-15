@@ -11,7 +11,7 @@ export async function GET(_req: Request, ctx: { params: Promise<{ sid: string }>
   try {
     const data = await exteriorSplat(sid);
     return new Response(new Uint8Array(data), {
-      headers: { "content-type": "application/octet-stream", "content-length": String(data.length), "cache-control": "public, max-age=604800, immutable" },
+      headers: { "content-type": "application/octet-stream", "content-length": String(data.length), "cache-control": "public, max-age=604800, s-maxage=2592000, immutable" },
     });
   } catch (e) {
     console.warn("exterior splat", sid, e);

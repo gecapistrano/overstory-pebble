@@ -4,6 +4,7 @@
  *  with a one-line message to the user, never forced into a style. */
 import { generateJSON, dataUrlToPart } from "@/lib/gemini";
 import { handle } from "@/lib/ai-server";
+import { arr, imageDataUrl, optStr, readBody } from "@/lib/validate";
 import { STYLES, CUES, FEELS, toStyle } from "@/lib/styles";
 import type { PhotoSubject, VibeTags } from "@/lib/types";
 
@@ -49,9 +50,11 @@ type Raw = {
 };
 
 export async function POST(req: Request) {
-  const { images, language } = (await req.json()) as { images: string[]; language?: string };
   return handle(async () => {
-    const raw = await generateJSON<Raw>(system(language || "English"), [...images.slice(0, 4).map(dataUrlToPart), { text: "Check these photos." }]);
+    const body = await readBody(req, 4 * 2 ** 20);
+    const images = arr(body.images, "images", { min: 1, max: 4 }, imageDataUrl);
+    const language = optStr(body.language, "language", 40);
+    const raw = await generateJSON<Raw>(system(language || "English"), [...images.map(dataUrlToPart), { text: "Check these photos." }]);
     const subject: PhotoSubject = SUBJECTS.includes(raw.subject as PhotoSubject) ? (raw.subject as PhotoSubject) : "not_home";
     const confidence = Math.max(0, Math.min(1, Number(raw.confidence) || 0));
     // a home call the model itself is unsure about is not good enough to steer a search

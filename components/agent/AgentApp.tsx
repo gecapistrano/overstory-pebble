@@ -346,7 +346,7 @@ function Pipeline({ leads, onOpen }: { leads: Lead[]; onOpen: (id: string) => vo
 }
 
 type AgentRun = { busy: boolean; draft?: string; draftNative?: string; reason?: string; trace?: { tool: string; result: string }[]; failed?: boolean };
-const TOOL_LABEL: Record<string, string> = { get_deal_history: "Read the deal history", check_listing: "Re-checked the listing", find_similar_houses: "Looked for similar houses", submit_draft: "Drafted the check-in" };
+const TOOL_LABEL: Record<string, string> = { get_deal_history: "Read the deal history", check_listing: "Looked up the listing (CoStar snapshot)", find_similar_houses: "Looked for similar houses", submit_draft: "Drafted the check-in" };
 
 function Nudges({ leads }: { leads: Lead[] }) {
   const items = leads.map((l) => ({ l, n: nudgeFor(l) })).filter((x) => x.n);

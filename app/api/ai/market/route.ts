@@ -7,7 +7,8 @@
 import listings from "@/data/listings.json";
 import type { Lead, Listing } from "@/lib/types";
 import { generateJSON, FAST_MODEL } from "@/lib/gemini";
-import { handle } from "@/lib/ai-server";
+import { BUDGET, handle } from "@/lib/ai-server";
+import { city as checkCity, obj, optArr, readBody } from "@/lib/validate";
 import { MARKET, cityMarket, opportunities } from "@/lib/market";
 import { hasVexcel, parcel } from "@/lib/vexcel";
 
@@ -29,8 +30,10 @@ Reply ONLY with JSON:
 Never target or exclude people by race, religion, national origin, sex, disability or familial status.`;
 
 export async function POST(req: Request) {
-  const { city = MARKET.demo.city, leads = [] } = (await req.json().catch(() => ({}))) as { city?: string; leads?: Lead[] };
   return handle(async () => {
+    const body = await readBody(req, 2 * 2 ** 20); // the whole pipeline of leads rides along
+    const city = checkCity(body.city) ?? MARKET.demo.city;
+    const leads = optArr(body.leads, "leads", { max: 1000 }, (l, n) => obj(l, n)) as unknown as Lead[];
     const m = cityMarket(city);
     const opps = opportunities(listings as unknown as Listing[], city, leads, 10);
     // layer Vexcel parcel attributes onto the top candidates (cached on disk; skipped if Vexcel is slow or down)
@@ -49,5 +52,5 @@ export async function POST(req: Request) {
     const ids = new Set(candidates.map((c) => c.id));
     const suggestions = (out.suggestions || []).filter((s) => ids.has(s.listingId)).slice(0, 5);
     return { recap: out.recap, insights: (out.insights || []).slice(0, 3), suggestions };
-  });
+  }, BUDGET.long);
 }

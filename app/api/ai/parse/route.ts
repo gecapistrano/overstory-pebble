@@ -12,6 +12,8 @@ import { handle, VIBES } from "@/lib/ai-server";
 import { search } from "@/lib/search";
 import { cityMarket } from "@/lib/market";
 import { DEMO_CITY } from "@/lib/markets";
+import { spokenRecap } from "@/lib/recap";
+import { HttpError, criteria as checkCriteria, optArr, readBody, str } from "@/lib/validate";
 
 const ALL = listings as unknown as Listing[];
 const HOODS = [...new Set(ALL.map((l) => `${l.city}: ${l.neighborhood}`))];
@@ -68,8 +70,12 @@ const brief = (l: Listing, c: Criteria) => ({
 });
 
 export async function POST(req: Request) {
-  const { text, prev, imageTags } = (await req.json()) as { text: string; prev: Criteria; imageTags?: string[] };
   return handle(async () => {
+    const body = await readBody(req);
+    const imageTags = optArr(body.imageTags, "imageTags", { max: 20 }, (t, n) => str(t, n, { max: 40 }));
+    const text = body.text === undefined || body.text === "" ? "" : str(body.text, "text", { max: 2000 });
+    if (!text && !imageTags.length) throw new HttpError(400, "bad-input", "Send text, imageTags, or both");
+    const prev = checkCriteria(body.prev, "prev") as unknown as Criteria;
     const parsed = await generateJSON<ParseOut>(
       PARSE_SYSTEM,
       [{ text: `Previous criteria: ${JSON.stringify(prev || {})}\nTags from a photo the client shared: ${JSON.stringify(imageTags || [])}\nClient said: """${text}"""` }],
@@ -82,14 +88,21 @@ export async function POST(req: Request) {
     const shortlist = search(ALL, c).slice(0, 10).map((s) => s.listing);
     const mk = cityMarket(c.city);
     const context = { city: c.city, medianRentByBeds: mk.apartments.medianAskingRent, apartmentAvailabilityPct: mk.apartments.availabilityPct, medianListPrice: mk.residential.medianListPrice, medianPricePerSqft: mk.residential.medianPricePerSqft };
+    // The re-rank is a nice-to-have: if it fails or runs out of time, keep Gemini's understanding of the
+    // client and show the search engine's own top 3, rather than throwing the whole answer away.
     const ranked = await generateJSON<RankOut>(
       RANK_SYSTEM,
       [{ text: `Client language: ${parsed.languageName}\nClient said (English): ${parsed.englishText}\nCriteria: ${JSON.stringify(c)}\nCoStar market context: ${JSON.stringify(context)}\nCandidates: ${JSON.stringify(shortlist.map((l) => brief(l, c)))}` }],
       FAST_MODEL
-    );
+    ).catch((e): RankOut => {
+      console.warn("[parse] re-rank skipped:", String(e).slice(0, 120));
+      return { picks: [], replyEnglish: "", replyNative: "" };
+    });
     const ids = new Set(shortlist.map((l) => l.id));
     const picks = (ranked.picks || []).filter((p) => ids.has(p.id)).slice(0, 3);
     for (const l of shortlist) if (picks.length < 3 && !picks.find((p) => p.id === l.id)) picks.push({ id: l.id, why: "" });
+    // re-rank skipped: say the same on-device recap the app uses offline (the app shows English when native is empty)
+    if (!ranked.replyEnglish) ranked.replyEnglish = spokenRecap(c, prev?.vibes?.length || prev?.budgetMax ? prev : undefined);
     return { switchQuestion: parsed.switchQuestion, language: parsed.language, languageName: parsed.languageName, languageNative: parsed.languageNative, englishText: parsed.englishText, criteria: c, picks, replyEnglish: ranked.replyEnglish, replyNative: ranked.replyNative };
   });
 }

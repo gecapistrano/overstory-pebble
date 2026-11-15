@@ -15,10 +15,15 @@ import path from "node:path";
 import exteriors from "@/data/exteriors.json";
 
 const SITE = (process.env.HACKATHON_SITE || "https://beta-app.matterport.com/2026-princeton-hackathon").replace(/\/$/, "");
-const CACHE = path.join(process.cwd(), ".cache", "exterior");
+// Vercel/serverless file systems are read-only except /tmp (same rule as lib/vexcel.ts); the CDN
+// (s-maxage on the route) keeps a built model, so a function rebuilds it only on a CDN miss.
+const CACHE = process.env.VERCEL ? path.join("/tmp", "exterior") : path.join(process.cwd(), ".cache", "exterior");
+const CACHE_VERSION = "v2"; // bump when the output format or size cap changes, so stale files are rebuilt
 const BUDGET = 96 * 2 ** 20; // bytes of PLY to read (~1.4 M Gaussians)
 const RADIUS = 32; // metres kept around the property
 const MIN_ALPHA = 0.06;
+/** Vercel Functions can return at most 4.5 MB; at 32 bytes per Gaussian, 4 MB keeps ~131k of them. */
+export const MAX_SPLATS = Math.floor((4 * 2 ** 20) / 32);
 const SH_C0 = 0.28209479177387814;
 
 const known = new Set(Object.values(exteriors as Record<string, { sid: string }>).map((e) => e.sid));
@@ -31,12 +36,16 @@ export function exteriorSplat(sid: string): Promise<Buffer> {
 }
 
 async function load(sid: string): Promise<Buffer> {
-  const f = path.join(CACHE, `${sid}.splat`);
+  const f = path.join(CACHE, `${sid}.${CACHE_VERSION}.splat`);
   try { return await fs.readFile(f); } catch {}
   const out = await build(sid);
-  await fs.mkdir(CACHE, { recursive: true });
-  await fs.writeFile(f + ".tmp", out);
-  await fs.rename(f + ".tmp", f);
+  try {
+    await fs.mkdir(CACHE, { recursive: true });
+    await fs.writeFile(f + ".tmp", out);
+    await fs.rename(f + ".tmp", f);
+  } catch (e) {
+    console.warn("exterior cache write failed; serving uncached", sid, e); // never fail a built model over the cache
+  }
   return out;
 }
 
@@ -77,7 +86,8 @@ export function toSplat(buf: Buffer): Buffer {
   const n = Math.floor((buf.length - body) / stride);
 
   // pass 1: keep Gaussians near the property that are not almost transparent
-  const keep: number[] = [];
+  let keep: number[] = [];
+  const alpha: number[] = [];
   const zs: number[] = [];
   for (let i = 0; i < n; i++) {
     const o = body + i * stride;
@@ -86,7 +96,13 @@ export function toSplat(buf: Buffer): Buffer {
     const a = 1 / (1 + Math.exp(-buf.readFloatLE(o + O)));
     if (a < MIN_ALPHA) continue;
     keep.push(o);
+    alpha.push(a);
     if (zs.length < 50000) zs.push(z);
+  }
+  // over the response-size cap: keep the most opaque Gaussians (solid surfaces), drop the faint haze first
+  if (keep.length > MAX_SPLATS) {
+    const order = keep.map((_, k) => k).sort((p, q) => alpha[q] - alpha[p]).slice(0, MAX_SPLATS);
+    keep = order.map((k) => keep[k]);
   }
   // ground ≈ low percentile of heights near the property; put it at z = 0
   zs.sort((a, b) => a - b);
