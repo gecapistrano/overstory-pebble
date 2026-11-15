@@ -1,0 +1,1930 @@
+[
+ {
+  "id": "pb-001",
+  "title": "Sunlit Artist Loft",
+  "kind": "rent",
+  "propertyType": "loft",
+  "price": 2850,
+  "beds": 2,
+  "baths": 1,
+  "sqft": 1080,
+  "neighborhood": "Witherspoon-Jackson",
+  "address": "214 Witherspoon St, Princeton, NJ",
+  "lat": 40.35464,
+  "lng": -74.66085,
+  "minutesToCampus": 10,
+  "commuteMode": "walk",
+  "petFriendly": true,
+  "availableFrom": "2027-08-01",
+  "style": "artsy",
+  "materials": [
+   "reclaimed wood",
+   "brick",
+   "terrazzo"
+  ],
+  "colors": [
+   "terracotta",
+   "mustard",
+   "teal"
+  ],
+  "ambience": [
+   "bright",
+   "creative",
+   "airy"
+  ],
+  "light": 0.97,
+  "description": "A converted print shop with 12-foot windows, terrazzo floors, and a gallery wall. Morning light floods the open studio; a fenced courtyard is perfect for a dog.",
+  "highlights": [
+   "12-ft windows",
+   "Fenced courtyard",
+   "Gallery wall"
+  ],
+  "agentId": "maya",
+  "yearBuilt": 1912,
+  "artSeed": 7919,
+  "source": "mock"
+ },
+ {
+  "id": "pb-002",
+  "title": "Ivy Cottage on John St",
+  "kind": "rent",
+  "propertyType": "house",
+  "price": 2950,
+  "beds": 2,
+  "baths": 1.5,
+  "sqft": 1150,
+  "neighborhood": "Witherspoon-Jackson",
+  "address": "58 John St, Princeton, NJ",
+  "lat": 40.35773,
+  "lng": -74.66266,
+  "minutesToCampus": 15,
+  "commuteMode": "walk",
+  "petFriendly": true,
+  "availableFrom": "2027-08-01",
+  "style": "victorian",
+  "materials": [
+   "painted wood",
+   "stained glass"
+  ],
+  "colors": [
+   "sage",
+   "blush"
+  ],
+  "ambience": [
+   "cozy",
+   "quiet",
+   "charming"
+  ],
+  "light": 0.62,
+  "description": "A sage-green Victorian cottage with a reading nook, gas fireplace, and a small garden. Eight minutes on foot to Nassau Hall.",
+  "highlights": [
+   "Fireplace",
+   "Garden",
+   "Reading nook"
+  ],
+  "agentId": "maya",
+  "yearBuilt": 1898,
+  "artSeed": 15838,
+  "source": "mock"
+ },
+ {
+  "id": "pb-003",
+  "title": "Chestnut Street Flat",
+  "kind": "rent",
+  "propertyType": "apartment",
+  "price": 2700,
+  "beds": 2,
+  "baths": 1,
+  "sqft": 960,
+  "neighborhood": "Jugtown",
+  "address": "31 Chestnut St, Princeton, NJ",
+  "lat": 40.35911,
+  "lng": -74.64763,
+  "minutesToCampus": 22,
+  "commuteMode": "walk",
+  "petFriendly": true,
+  "availableFrom": "2027-08-15",
+  "style": "craftsman",
+  "materials": [
+   "cedar shingle",
+   "stone",
+   "oak"
+  ],
+  "colors": [
+   "olive",
+   "cream"
+  ],
+  "ambience": [
+   "cozy",
+   "warm"
+  ],
+  "light": 0.55,
+  "description": "Second-floor flat in a cedar-shingle craftsman. Built-in bookshelves, oak floors, and a porch swing out front.",
+  "highlights": [
+   "Built-in shelves",
+   "Porch",
+   "Dog-friendly"
+  ],
+  "agentId": "daniel",
+  "yearBuilt": 1924,
+  "artSeed": 23757,
+  "source": "mock"
+ },
+ {
+  "id": "pb-004",
+  "title": "Palmer Square Studio Loft",
+  "kind": "rent",
+  "propertyType": "loft",
+  "price": 3200,
+  "beds": 1,
+  "baths": 1,
+  "sqft": 820,
+  "neighborhood": "Downtown Princeton",
+  "address": "12 Palmer Sq W, Princeton, NJ",
+  "lat": 40.34799,
+  "lng": -74.66304,
+  "minutesToCampus": 5,
+  "commuteMode": "walk",
+  "petFriendly": false,
+  "availableFrom": "Now",
+  "style": "industrial",
+  "materials": [
+   "exposed brick",
+   "steel",
+   "concrete"
+  ],
+  "colors": [
+   "rust",
+   "graphite"
+  ],
+  "ambience": [
+   "urban",
+   "bright",
+   "lofty"
+  ],
+  "light": 0.8,
+  "description": "Exposed brick loft above the square. Walk to everything.",
+  "highlights": [
+   "Exposed brick",
+   "Above the square"
+  ],
+  "agentId": "priya",
+  "yearBuilt": 1933,
+  "artSeed": 31676,
+  "source": "mock"
+ },
+ {
+  "id": "pb-005",
+  "title": "Gothic Revival Carriage House",
+  "kind": "rent",
+  "propertyType": "house",
+  "price": 3400,
+  "beds": 2,
+  "baths": 2,
+  "sqft": 1300,
+  "neighborhood": "Western Section",
+  "address": "9 Library Pl, Princeton, NJ",
+  "lat": 40.34473,
+  "lng": -74.67284,
+  "minutesToCampus": 18,
+  "commuteMode": "walk",
+  "petFriendly": true,
+  "availableFrom": "2027-07-01",
+  "style": "gothic",
+  "materials": [
+   "stone",
+   "slate",
+   "dark wood"
+  ],
+  "colors": [
+   "charcoal",
+   "moss"
+  ],
+  "ambience": [
+   "quiet",
+   "historic"
+  ],
+  "light": 0.4,
+  "description": "Stone carriage house with pointed-arch windows and a private lane, steps from the Seminary.",
+  "highlights": [
+   "Pointed-arch windows",
+   "Private lane"
+  ],
+  "agentId": "maya",
+  "yearBuilt": 1887,
+  "artSeed": 39595,
+  "source": "mock"
+ },
+ {
+  "id": "pb-006",
+  "title": "Bright Scandinavian Two-Bed",
+  "kind": "rent",
+  "propertyType": "apartment",
+  "price": 2600,
+  "beds": 2,
+  "baths": 1,
+  "sqft": 900,
+  "neighborhood": "Riverside",
+  "address": "141 Riverside Dr, Princeton, NJ",
+  "lat": 40.3381,
+  "lng": -74.64318,
+  "minutesToCampus": 26,
+  "commuteMode": "walk",
+  "petFriendly": true,
+  "availableFrom": "2027-08-01",
+  "style": "scandinavian",
+  "materials": [
+   "birch",
+   "linen",
+   "white oak"
+  ],
+  "colors": [
+   "white",
+   "sand"
+  ],
+  "ambience": [
+   "bright",
+   "calm",
+   "cozy"
+  ],
+  "light": 0.9,
+  "description": "White oak, linen, and a wall of south-facing windows. Lake Carnegie trail at the corner.",
+  "highlights": [
+   "South-facing",
+   "Near the lake trail"
+  ],
+  "agentId": "elena",
+  "yearBuilt": 1916,
+  "artSeed": 47514,
+  "source": "mock"
+ },
+ {
+  "id": "pb-007",
+  "title": "Modern Farmhouse on Snowden",
+  "kind": "buy",
+  "propertyType": "house",
+  "price": 1295000,
+  "beds": 4,
+  "baths": 3,
+  "sqft": 2900,
+  "neighborhood": "Littlebrook",
+  "address": "187 Snowden Ln, Princeton, NJ",
+  "lat": 40.33573,
+  "lng": -74.63096,
+  "minutesToCampus": 9,
+  "commuteMode": "drive",
+  "petFriendly": true,
+  "availableFrom": "2027-09-01",
+  "style": "modern farmhouse",
+  "materials": [
+   "board and batten",
+   "black steel",
+   "pine"
+  ],
+  "colors": [
+   "white",
+   "black"
+  ],
+  "ambience": [
+   "cozy",
+   "airy",
+   "family"
+  ],
+  "light": 0.75,
+  "description": "Board-and-batten farmhouse on half an acre, walk to Littlebrook Elementary.",
+  "highlights": [
+   "Half-acre lot",
+   "Top-rated schools"
+  ],
+  "agentId": "marcus",
+  "yearBuilt": 1966,
+  "artSeed": 55433,
+  "source": "mock"
+ },
+ {
+  "id": "pb-008",
+  "title": "Hopewell Meadow Parcel",
+  "kind": "land",
+  "propertyType": "land",
+  "price": 385000,
+  "beds": 0,
+  "baths": 0,
+  "sqft": 217800,
+  "neighborhood": "Hopewell",
+  "address": "155 Greenwood Ave, Hopewell, NJ",
+  "lat": 40.38875,
+  "lng": -74.75758,
+  "minutesToCampus": 22,
+  "commuteMode": "drive",
+  "petFriendly": true,
+  "availableFrom": "2027-08-01",
+  "style": "land",
+  "materials": [],
+  "colors": [],
+  "ambience": [
+   "open",
+   "quiet"
+  ],
+  "light": 1,
+  "description": "Five gently rolling acres, perc-tested, with mature oaks along the road. Zoned residential.",
+  "highlights": [
+   "5 acres",
+   "Perc-tested",
+   "Zoned R-1"
+  ],
+  "agentId": "marcus",
+  "yearBuilt": 1896,
+  "artSeed": 63352,
+  "source": "mock"
+ },
+ {
+  "id": "pb-009",
+  "title": "Nassau Inn Garden Suite",
+  "kind": "stay",
+  "propertyType": "suite",
+  "price": 289,
+  "beds": 1,
+  "baths": 1,
+  "sqft": 520,
+  "neighborhood": "Downtown Princeton",
+  "address": "10 Palmer Sq E, Princeton, NJ",
+  "lat": 40.35414,
+  "lng": -74.65718,
+  "minutesToCampus": 9,
+  "commuteMode": "walk",
+  "petFriendly": false,
+  "availableFrom": "Now",
+  "style": "colonial",
+  "materials": [
+   "brick",
+   "clapboard",
+   "hardwood"
+  ],
+  "colors": [
+   "red brick",
+   "cream"
+  ],
+  "ambience": [
+   "cozy",
+   "classic",
+   "quiet"
+  ],
+  "light": 0.6,
+  "description": "A short stay for house-hunting weekends. Breakfast included, a block from campus.",
+  "highlights": [
+   "Breakfast",
+   "Weekly rates"
+  ],
+  "agentId": "priya",
+  "yearBuilt": 1957,
+  "artSeed": 71271,
+  "source": "mock"
+ },
+ {
+  "id": "pb-010",
+  "title": "Witherspoon Retail Corner",
+  "kind": "commercial",
+  "propertyType": "office",
+  "price": 6800,
+  "beds": 0,
+  "baths": 0,
+  "sqft": 1800,
+  "neighborhood": "Downtown Princeton",
+  "address": "120 Witherspoon St, Princeton, NJ",
+  "lat": 40.34749,
+  "lng": -74.65462,
+  "minutesToCampus": 6,
+  "commuteMode": "walk",
+  "petFriendly": false,
+  "availableFrom": "Now",
+  "style": "contemporary",
+  "materials": [
+   "glass",
+   "fiber cement",
+   "walnut"
+  ],
+  "colors": [
+   "slate",
+   "white"
+  ],
+  "ambience": [
+   "bright",
+   "busy",
+   "sleek"
+  ],
+  "light": 0.85,
+  "description": "Glass-front retail or studio space with high foot traffic.",
+  "highlights": [
+   "Corner storefront",
+   "High foot traffic"
+  ],
+  "agentId": "elena",
+  "yearBuilt": 1967,
+  "artSeed": 79190,
+  "source": "mock"
+ },
+ {
+  "id": "pb-011",
+  "title": "Cloister Lane Flat",
+  "kind": "rent",
+  "propertyType": "house",
+  "price": 3500,
+  "beds": 4,
+  "baths": 2,
+  "sqft": 1804,
+  "neighborhood": "Pennington",
+  "address": "275 Delaware Ave, Pennington, NJ",
+  "lat": 40.33024,
+  "lng": -74.79292,
+  "minutesToCampus": 26,
+  "commuteMode": "drive",
+  "petFriendly": false,
+  "availableFrom": "2027-08-15",
+  "style": "gothic",
+  "materials": [
+   "stone",
+   "slate",
+   "dark wood"
+  ],
+  "colors": [
+   "charcoal",
+   "moss"
+  ],
+  "ambience": [
+   "quiet",
+   "historic"
+  ],
+  "light": 0.5359518378041684,
+  "description": "A gothic 4-bedroom in Pennington with stone, slate, dark wood details.",
+  "highlights": [],
+  "agentId": "daniel",
+  "yearBuilt": 2002,
+  "artSeed": 87109,
+  "source": "mock"
+ },
+ {
+  "id": "pb-012",
+  "title": "Quiet White Two-Bed",
+  "kind": "rent",
+  "propertyType": "apartment",
+  "price": 3225,
+  "beds": 2,
+  "baths": 1,
+  "sqft": 1267,
+  "neighborhood": "Western Section",
+  "address": "143 Hodge Rd, Princeton, NJ",
+  "lat": 40.35012,
+  "lng": -74.67539,
+  "minutesToCampus": 20,
+  "commuteMode": "walk",
+  "petFriendly": true,
+  "availableFrom": "2027-09-01",
+  "style": "minimalist",
+  "materials": [
+   "concrete",
+   "glass",
+   "white oak"
+  ],
+  "colors": [
+   "white",
+   "warm grey"
+  ],
+  "ambience": [
+   "bright",
+   "calm"
+  ],
+  "light": 0.85,
+  "description": "A minimalist 2-bedroom in Western Section with concrete, glass, white oak details.",
+  "highlights": [],
+  "agentId": "daniel",
+  "yearBuilt": 1983,
+  "artSeed": 95028,
+  "source": "mock"
+ },
+ {
+  "id": "pb-013",
+  "title": "Painted Door Duplex",
+  "kind": "rent",
+  "propertyType": "townhouse",
+  "price": 3300,
+  "beds": 2,
+  "baths": 1,
+  "sqft": 1145,
+  "neighborhood": "Western Section",
+  "address": "30 Hodge Rd, Princeton, NJ",
+  "lat": 40.34762,
+  "lng": -74.67,
+  "minutesToCampus": 13,
+  "commuteMode": "walk",
+  "petFriendly": false,
+  "availableFrom": "Now",
+  "style": "artsy",
+  "materials": [
+   "reclaimed wood",
+   "brick",
+   "terrazzo"
+  ],
+  "colors": [
+   "terracotta",
+   "mustard",
+   "teal"
+  ],
+  "ambience": [
+   "creative",
+   "bright"
+  ],
+  "light": 0.85,
+  "description": "A artsy 2-bedroom in Western Section with reclaimed wood, brick, terrazzo details.",
+  "highlights": [],
+  "agentId": "marcus",
+  "yearBuilt": 1995,
+  "artSeed": 102947,
+  "source": "mock"
+ },
+ {
+  "id": "pb-014",
+  "title": "Barn-Style Townhome",
+  "kind": "rent",
+  "propertyType": "townhouse",
+  "price": 2650,
+  "beds": 2,
+  "baths": 1,
+  "sqft": 1272,
+  "neighborhood": "Kingston",
+  "address": "357 Main St, Kingston, NJ",
+  "lat": 40.37376,
+  "lng": -74.6135,
+  "minutesToCampus": 13,
+  "commuteMode": "drive",
+  "petFriendly": false,
+  "availableFrom": "2027-08-15",
+  "style": "modern farmhouse",
+  "materials": [
+   "board and batten",
+   "black steel",
+   "pine"
+  ],
+  "colors": [
+   "white",
+   "black"
+  ],
+  "ambience": [
+   "cozy",
+   "airy"
+  ],
+  "light": 0.4565793486195616,
+  "description": "A modern farmhouse 2-bedroom in Kingston with board and batten, black steel, pine details.",
+  "highlights": [],
+  "agentId": "marcus",
+  "yearBuilt": 1984,
+  "artSeed": 110866,
+  "source": "mock"
+ },
+ {
+  "id": "pb-015",
+  "title": "Brick Colonial Half-House",
+  "kind": "rent",
+  "propertyType": "house",
+  "price": 2850,
+  "beds": 2,
+  "baths": 1,
+  "sqft": 1287,
+  "neighborhood": "Riverside",
+  "address": "361 Riverside Dr, Princeton, NJ",
+  "lat": 40.33468,
+  "lng": -74.63979,
+  "minutesToCampus": 8,
+  "commuteMode": "drive",
+  "petFriendly": true,
+  "availableFrom": "2027-08-01",
+  "style": "colonial",
+  "materials": [
+   "brick",
+   "clapboard",
+   "hardwood"
+  ],
+  "colors": [
+   "red brick",
+   "cream"
+  ],
+  "ambience": [
+   "classic",
+   "quiet"
+  ],
+  "light": 0.6586539491778239,
+  "description": "A colonial 2-bedroom in Riverside with brick, clapboard, hardwood details.",
+  "highlights": [],
+  "agentId": "daniel",
+  "yearBuilt": 2013,
+  "artSeed": 118785,
+  "source": "mock"
+ },
+ {
+  "id": "pb-016",
+  "title": "Porch-Front Victorian Unit",
+  "kind": "rent",
+  "propertyType": "apartment",
+  "price": 4450,
+  "beds": 4,
+  "baths": 2,
+  "sqft": 1948,
+  "neighborhood": "Riverside",
+  "address": "340 Prospect Ave, Princeton, NJ",
+  "lat": 40.33446,
+  "lng": -74.63981,
+  "minutesToCampus": 8,
+  "commuteMode": "drive",
+  "petFriendly": false,
+  "availableFrom": "2027-09-01",
+  "style": "victorian",
+  "materials": [
+   "painted wood",
+   "stained glass"
+  ],
+  "colors": [
+   "sage",
+   "blush"
+  ],
+  "ambience": [
+   "cozy",
+   "charming"
+  ],
+  "light": 0.4074436296825297,
+  "description": "A victorian 4-bedroom in Riverside with painted wood, stained glass details.",
+  "highlights": [],
+  "agentId": "elena",
+  "yearBuilt": 1915,
+  "artSeed": 126704,
+  "source": "mock"
+ },
+ {
+  "id": "pb-017",
+  "title": "Mill Loft",
+  "kind": "rent",
+  "propertyType": "apartment",
+  "price": 2525,
+  "beds": 1,
+  "baths": 1,
+  "sqft": 846,
+  "neighborhood": "Lawrenceville",
+  "address": "213 Gordon Ave, Lawrenceville, NJ",
+  "lat": 40.30089,
+  "lng": -74.72509,
+  "minutesToCampus": 19,
+  "commuteMode": "drive",
+  "petFriendly": false,
+  "availableFrom": "2027-09-01",
+  "style": "industrial",
+  "materials": [
+   "exposed brick",
+   "steel",
+   "concrete"
+  ],
+  "colors": [
+   "rust",
+   "graphite"
+  ],
+  "ambience": [
+   "urban",
+   "lofty"
+  ],
+  "light": 0.5911774471402168,
+  "description": "A industrial 1-bedroom in Lawrenceville with exposed brick, steel, concrete details.",
+  "highlights": [],
+  "agentId": "priya",
+  "yearBuilt": 1921,
+  "artSeed": 134623,
+  "source": "mock"
+ },
+ {
+  "id": "pb-018",
+  "title": "Bungalow Rental",
+  "kind": "rent",
+  "propertyType": "studio",
+  "price": 1775,
+  "beds": 0,
+  "baths": 1,
+  "sqft": 573,
+  "neighborhood": "Witherspoon-Jackson",
+  "address": "79 Birch Ave, Princeton, NJ",
+  "lat": 40.35176,
+  "lng": -74.66145,
+  "minutesToCampus": 6,
+  "commuteMode": "walk",
+  "petFriendly": true,
+  "availableFrom": "2027-09-01",
+  "style": "craftsman",
+  "materials": [
+   "cedar shingle",
+   "stone",
+   "oak"
+  ],
+  "colors": [
+   "olive",
+   "cream"
+  ],
+  "ambience": [
+   "cozy",
+   "warm"
+  ],
+  "light": 0.35572335424367335,
+  "description": "A craftsman studio in Witherspoon-Jackson with cedar shingle, stone, oak details.",
+  "highlights": [],
+  "agentId": "daniel",
+  "yearBuilt": 1993,
+  "artSeed": 142542,
+  "source": "mock"
+ },
+ {
+  "id": "pb-019",
+  "title": "Sleek Garden Condo",
+  "kind": "rent",
+  "propertyType": "townhouse",
+  "price": 2800,
+  "beds": 2,
+  "baths": 1,
+  "sqft": 1110,
+  "neighborhood": "Witherspoon-Jackson",
+  "address": "176 John St, Princeton, NJ",
+  "lat": 40.35239,
+  "lng": -74.66776,
+  "minutesToCampus": 12,
+  "commuteMode": "walk",
+  "petFriendly": false,
+  "availableFrom": "2027-08-01",
+  "style": "contemporary",
+  "materials": [
+   "glass",
+   "fiber cement",
+   "walnut"
+  ],
+  "colors": [
+   "slate",
+   "white"
+  ],
+  "ambience": [
+   "bright",
+   "sleek"
+  ],
+  "light": 0.85,
+  "description": "A contemporary 2-bedroom in Witherspoon-Jackson with glass, fiber cement, walnut details.",
+  "highlights": [],
+  "agentId": "elena",
+  "yearBuilt": 1981,
+  "artSeed": 150461,
+  "source": "mock"
+ },
+ {
+  "id": "pb-020",
+  "title": "Birch & Linen Apartment",
+  "kind": "rent",
+  "propertyType": "townhouse",
+  "price": 3325,
+  "beds": 3,
+  "baths": 2,
+  "sqft": 1580,
+  "neighborhood": "Pennington",
+  "address": "308 Burd St, Pennington, NJ",
+  "lat": 40.33043,
+  "lng": -74.78647,
+  "minutesToCampus": 25,
+  "commuteMode": "drive",
+  "petFriendly": true,
+  "availableFrom": "2027-08-01",
+  "style": "scandinavian",
+  "materials": [
+   "birch",
+   "linen",
+   "white oak"
+  ],
+  "colors": [
+   "white",
+   "sand"
+  ],
+  "ambience": [
+   "bright",
+   "calm",
+   "cozy"
+  ],
+  "light": 0.85,
+  "description": "A scandinavian 3-bedroom in Pennington with birch, linen, white oak details.",
+  "highlights": [],
+  "agentId": "marcus",
+  "yearBuilt": 1892,
+  "artSeed": 158380,
+  "source": "mock"
+ },
+ {
+  "id": "pb-021",
+  "title": "Cloister Lane Flat",
+  "kind": "rent",
+  "propertyType": "apartment",
+  "price": 4075,
+  "beds": 4,
+  "baths": 2,
+  "sqft": 1792,
+  "neighborhood": "Jugtown",
+  "address": "49 Evelyn Pl, Princeton, NJ",
+  "lat": 40.35454,
+  "lng": -74.65231,
+  "minutesToCampus": 13,
+  "commuteMode": "walk",
+  "petFriendly": true,
+  "availableFrom": "2027-07-01",
+  "style": "gothic",
+  "materials": [
+   "stone",
+   "slate",
+   "dark wood"
+  ],
+  "colors": [
+   "charcoal",
+   "moss"
+  ],
+  "ambience": [
+   "quiet",
+   "historic"
+  ],
+  "light": 0.5654708150890655,
+  "description": "A gothic 4-bedroom in Jugtown with stone, slate, dark wood details.",
+  "highlights": [],
+  "agentId": "daniel",
+  "yearBuilt": 1953,
+  "artSeed": 166299,
+  "source": "mock"
+ },
+ {
+  "id": "pb-022",
+  "title": "Quiet White Two-Bed",
+  "kind": "rent",
+  "propertyType": "apartment",
+  "price": 3300,
+  "beds": 2,
+  "baths": 1,
+  "sqft": 1140,
+  "neighborhood": "Littlebrook",
+  "address": "158 Magnolia Ln, Princeton, NJ",
+  "lat": 40.33772,
+  "lng": -74.63402,
+  "minutesToCampus": 9,
+  "commuteMode": "drive",
+  "petFriendly": true,
+  "availableFrom": "2027-07-01",
+  "style": "minimalist",
+  "materials": [
+   "concrete",
+   "glass",
+   "white oak"
+  ],
+  "colors": [
+   "white",
+   "warm grey"
+  ],
+  "ambience": [
+   "bright",
+   "calm"
+  ],
+  "light": 0.85,
+  "description": "A minimalist 2-bedroom in Littlebrook with concrete, glass, white oak details.",
+  "highlights": [],
+  "agentId": "elena",
+  "yearBuilt": 1894,
+  "artSeed": 174218,
+  "source": "mock"
+ },
+ {
+  "id": "pb-023",
+  "title": "Painted Door Duplex",
+  "kind": "rent",
+  "propertyType": "apartment",
+  "price": 3425,
+  "beds": 3,
+  "baths": 2,
+  "sqft": 1580,
+  "neighborhood": "Pennington",
+  "address": "349 Burd St, Pennington, NJ",
+  "lat": 40.32761,
+  "lng": -74.79,
+  "minutesToCampus": 26,
+  "commuteMode": "drive",
+  "petFriendly": true,
+  "availableFrom": "2027-09-01",
+  "style": "artsy",
+  "materials": [
+   "reclaimed wood",
+   "brick",
+   "terrazzo"
+  ],
+  "colors": [
+   "terracotta",
+   "mustard",
+   "teal"
+  ],
+  "ambience": [
+   "creative",
+   "bright"
+  ],
+  "light": 0.85,
+  "description": "A artsy 3-bedroom in Pennington with reclaimed wood, brick, terrazzo details.",
+  "highlights": [],
+  "agentId": "daniel",
+  "yearBuilt": 1900,
+  "artSeed": 182137,
+  "source": "mock"
+ },
+ {
+  "id": "pb-024",
+  "title": "Barn-Style Townhome",
+  "kind": "rent",
+  "propertyType": "apartment",
+  "price": 3475,
+  "beds": 2,
+  "baths": 1,
+  "sqft": 1278,
+  "neighborhood": "Riverside",
+  "address": "318 Hartley Ave, Princeton, NJ",
+  "lat": 40.33157,
+  "lng": -74.6388,
+  "minutesToCampus": 9,
+  "commuteMode": "drive",
+  "petFriendly": true,
+  "availableFrom": "2027-06-01",
+  "style": "modern farmhouse",
+  "materials": [
+   "board and batten",
+   "black steel",
+   "pine"
+  ],
+  "colors": [
+   "white",
+   "black"
+  ],
+  "ambience": [
+   "cozy",
+   "airy"
+  ],
+  "light": 0.4482395769562572,
+  "description": "A modern farmhouse 2-bedroom in Riverside with board and batten, black steel, pine details.",
+  "highlights": [],
+  "agentId": "marcus",
+  "yearBuilt": 1932,
+  "artSeed": 190056,
+  "source": "mock"
+ },
+ {
+  "id": "pb-025",
+  "title": "Brick Colonial Half-House",
+  "kind": "rent",
+  "propertyType": "townhouse",
+  "price": 3800,
+  "beds": 3,
+  "baths": 2,
+  "sqft": 1626,
+  "neighborhood": "Jugtown",
+  "address": "164 Chestnut St, Princeton, NJ",
+  "lat": 40.35228,
+  "lng": -74.64889,
+  "minutesToCampus": 14,
+  "commuteMode": "walk",
+  "petFriendly": true,
+  "availableFrom": "2027-07-01",
+  "style": "colonial",
+  "materials": [
+   "brick",
+   "clapboard",
+   "hardwood"
+  ],
+  "colors": [
+   "red brick",
+   "cream"
+  ],
+  "ambience": [
+   "classic",
+   "quiet"
+  ],
+  "light": 0.3991779519128613,
+  "description": "A colonial 3-bedroom in Jugtown with brick, clapboard, hardwood details.",
+  "highlights": [],
+  "agentId": "maya",
+  "yearBuilt": 1953,
+  "artSeed": 197975,
+  "source": "mock"
+ },
+ {
+  "id": "pb-026",
+  "title": "Porch-Front Victorian Unit",
+  "kind": "rent",
+  "propertyType": "apartment",
+  "price": 3525,
+  "beds": 4,
+  "baths": 2,
+  "sqft": 1779,
+  "neighborhood": "Plainsboro",
+  "address": "183 Plainsboro Rd, Plainsboro, NJ",
+  "lat": 40.33044,
+  "lng": -74.59089,
+  "minutesToCampus": 16,
+  "commuteMode": "drive",
+  "petFriendly": true,
+  "availableFrom": "2027-09-01",
+  "style": "victorian",
+  "materials": [
+   "painted wood",
+   "stained glass"
+  ],
+  "colors": [
+   "sage",
+   "blush"
+  ],
+  "ambience": [
+   "cozy",
+   "charming"
+  ],
+  "light": 0.5749773870920762,
+  "description": "A victorian 4-bedroom in Plainsboro with painted wood, stained glass details.",
+  "highlights": [],
+  "agentId": "priya",
+  "yearBuilt": 1935,
+  "artSeed": 205894,
+  "source": "mock"
+ },
+ {
+  "id": "pb-027",
+  "title": "Warehouse Loft",
+  "kind": "rent",
+  "propertyType": "studio",
+  "price": 2500,
+  "beds": 0,
+  "baths": 1,
+  "sqft": 647,
+  "neighborhood": "Downtown Princeton",
+  "address": "60 Chambers St, Princeton, NJ",
+  "lat": 40.35113,
+  "lng": -74.65677,
+  "minutesToCampus": 5,
+  "commuteMode": "walk",
+  "petFriendly": false,
+  "availableFrom": "2027-08-15",
+  "style": "industrial",
+  "materials": [
+   "exposed brick",
+   "steel",
+   "concrete"
+  ],
+  "colors": [
+   "rust",
+   "graphite"
+  ],
+  "ambience": [
+   "urban",
+   "lofty"
+  ],
+  "light": 0.5391897505149245,
+  "description": "A industrial studio in Downtown Princeton with exposed brick, steel, concrete details.",
+  "highlights": [],
+  "agentId": "maya",
+  "yearBuilt": 2020,
+  "artSeed": 213813,
+  "source": "mock"
+ },
+ {
+  "id": "pb-028",
+  "title": "Cedar Porch Flat",
+  "kind": "rent",
+  "propertyType": "apartment",
+  "price": 3775,
+  "beds": 3,
+  "baths": 2,
+  "sqft": 1537,
+  "neighborhood": "Riverside",
+  "address": "352 Hartley Ave, Princeton, NJ",
+  "lat": 40.33638,
+  "lng": -74.64321,
+  "minutesToCampus": 28,
+  "commuteMode": "walk",
+  "petFriendly": true,
+  "availableFrom": "2027-09-01",
+  "style": "craftsman",
+  "materials": [
+   "cedar shingle",
+   "stone",
+   "oak"
+  ],
+  "colors": [
+   "olive",
+   "cream"
+  ],
+  "ambience": [
+   "cozy",
+   "warm"
+  ],
+  "light": 0.4304106150171719,
+  "description": "A craftsman 3-bedroom in Riverside with cedar shingle, stone, oak details.",
+  "highlights": [],
+  "agentId": "elena",
+  "yearBuilt": 2011,
+  "artSeed": 221732,
+  "source": "mock"
+ },
+ {
+  "id": "pb-029",
+  "title": "Sleek Garden Condo",
+  "kind": "rent",
+  "propertyType": "studio",
+  "price": 1450,
+  "beds": 0,
+  "baths": 1,
+  "sqft": 557,
+  "neighborhood": "Lawrenceville",
+  "address": "75 Main St, Lawrenceville, NJ",
+  "lat": 40.29461,
+  "lng": -74.72857,
+  "minutesToCampus": 20,
+  "commuteMode": "drive",
+  "petFriendly": true,
+  "availableFrom": "2027-09-01",
+  "style": "contemporary",
+  "materials": [
+   "glass",
+   "fiber cement",
+   "walnut"
+  ],
+  "colors": [
+   "slate",
+   "white"
+  ],
+  "ambience": [
+   "bright",
+   "sleek"
+  ],
+  "light": 0.85,
+  "description": "A contemporary studio in Lawrenceville with glass, fiber cement, walnut details.",
+  "highlights": [],
+  "agentId": "marcus",
+  "yearBuilt": 1949,
+  "artSeed": 229651,
+  "source": "mock"
+ },
+ {
+  "id": "pb-030",
+  "title": "Birch & Linen Apartment",
+  "kind": "rent",
+  "propertyType": "apartment",
+  "price": 3525,
+  "beds": 2,
+  "baths": 1,
+  "sqft": 1135,
+  "neighborhood": "Riverside",
+  "address": "158 Prospect Ave, Princeton, NJ",
+  "lat": 40.33129,
+  "lng": -74.64217,
+  "minutesToCampus": 9,
+  "commuteMode": "drive",
+  "petFriendly": false,
+  "availableFrom": "2027-09-01",
+  "style": "scandinavian",
+  "materials": [
+   "birch",
+   "linen",
+   "white oak"
+  ],
+  "colors": [
+   "white",
+   "sand"
+  ],
+  "ambience": [
+   "bright",
+   "calm",
+   "cozy"
+  ],
+  "light": 0.85,
+  "description": "A scandinavian 2-bedroom in Riverside with birch, linen, white oak details.",
+  "highlights": [],
+  "agentId": "marcus",
+  "yearBuilt": 1891,
+  "artSeed": 237570,
+  "source": "mock"
+ },
+ {
+  "id": "pb-031",
+  "title": "Gothic Revival Manor",
+  "kind": "buy",
+  "propertyType": "house",
+  "price": 1697000,
+  "beds": 5,
+  "baths": 4.5,
+  "sqft": 4147,
+  "neighborhood": "Downtown Princeton",
+  "address": "179 Witherspoon St, Princeton, NJ",
+  "lat": 40.34914,
+  "lng": -74.65797,
+  "minutesToCampus": 3,
+  "commuteMode": "walk",
+  "petFriendly": false,
+  "availableFrom": "2027-07-01",
+  "style": "gothic",
+  "materials": [
+   "stone",
+   "slate",
+   "dark wood"
+  ],
+  "colors": [
+   "charcoal",
+   "moss"
+  ],
+  "ambience": [
+   "quiet",
+   "historic"
+  ],
+  "light": 0.49751919645350423,
+  "description": "For sale: a gothic home in Downtown Princeton. stone, slate, dark wood throughout.",
+  "highlights": [],
+  "agentId": "elena",
+  "yearBuilt": 1924,
+  "artSeed": 245489,
+  "source": "mock"
+ },
+ {
+  "id": "pb-032",
+  "title": "Farmhouse on the Ridge",
+  "kind": "buy",
+  "propertyType": "condo",
+  "price": 1222000,
+  "beds": 4,
+  "baths": 3,
+  "sqft": 3251,
+  "neighborhood": "Hopewell",
+  "address": "310 Greenwood Ave, Hopewell, NJ",
+  "lat": 40.39133,
+  "lng": -74.75961,
+  "minutesToCampus": 22,
+  "commuteMode": "drive",
+  "petFriendly": true,
+  "availableFrom": "2027-08-01",
+  "style": "modern farmhouse",
+  "materials": [
+   "board and batten",
+   "black steel",
+   "pine"
+  ],
+  "colors": [
+   "white",
+   "black"
+  ],
+  "ambience": [
+   "cozy",
+   "airy"
+  ],
+  "light": 0.3519655232084915,
+  "description": "For sale: a modern farmhouse home in Hopewell. board and batten, black steel, pine throughout.",
+  "highlights": [],
+  "agentId": "elena",
+  "yearBuilt": 1925,
+  "artSeed": 253408,
+  "source": "mock"
+ },
+ {
+  "id": "pb-033",
+  "title": "Converted Mill Condo",
+  "kind": "buy",
+  "propertyType": "townhouse",
+  "price": 1406000,
+  "beds": 3,
+  "baths": 2,
+  "sqft": 3252,
+  "neighborhood": "Witherspoon-Jackson",
+  "address": "33 Birch Ave, Princeton, NJ",
+  "lat": 40.35818,
+  "lng": -74.66558,
+  "minutesToCampus": 17,
+  "commuteMode": "walk",
+  "petFriendly": true,
+  "availableFrom": "2027-09-01",
+  "style": "industrial",
+  "materials": [
+   "exposed brick",
+   "steel",
+   "concrete"
+  ],
+  "colors": [
+   "rust",
+   "graphite"
+  ],
+  "ambience": [
+   "urban",
+   "lofty"
+  ],
+  "light": 0.38119797657709564,
+  "description": "For sale: a industrial home in Witherspoon-Jackson. exposed brick, steel, concrete throughout.",
+  "highlights": [],
+  "agentId": "maya",
+  "yearBuilt": 1977,
+  "artSeed": 261327,
+  "source": "mock"
+ },
+ {
+  "id": "pb-034",
+  "title": "Nordic Saltbox",
+  "kind": "buy",
+  "propertyType": "condo",
+  "price": 1023000,
+  "beds": 4,
+  "baths": 3,
+  "sqft": 3409,
+  "neighborhood": "Kingston",
+  "address": "296 Heathcote Rd, Kingston, NJ",
+  "lat": 40.37564,
+  "lng": -74.61233,
+  "minutesToCampus": 13,
+  "commuteMode": "drive",
+  "petFriendly": true,
+  "availableFrom": "2027-08-15",
+  "style": "scandinavian",
+  "materials": [
+   "birch",
+   "linen",
+   "white oak"
+  ],
+  "colors": [
+   "white",
+   "sand"
+  ],
+  "ambience": [
+   "bright",
+   "calm",
+   "cozy"
+  ],
+  "light": 0.85,
+  "description": "For sale: a scandinavian home in Kingston. birch, linen, white oak throughout.",
+  "highlights": [],
+  "agentId": "maya",
+  "yearBuilt": 2002,
+  "artSeed": 269246,
+  "source": "mock"
+ },
+ {
+  "id": "pb-035",
+  "title": "Collector's Studio House",
+  "kind": "buy",
+  "propertyType": "house",
+  "price": 1257000,
+  "beds": 2,
+  "baths": 1.5,
+  "sqft": 2559,
+  "neighborhood": "Downtown Princeton",
+  "address": "75 Palmer Sq W, Princeton, NJ",
+  "lat": 40.35061,
+  "lng": -74.65772,
+  "minutesToCampus": 4,
+  "commuteMode": "walk",
+  "petFriendly": true,
+  "availableFrom": "2027-07-01",
+  "style": "artsy",
+  "materials": [
+   "reclaimed wood",
+   "brick",
+   "terrazzo"
+  ],
+  "colors": [
+   "terracotta",
+   "mustard",
+   "teal"
+  ],
+  "ambience": [
+   "creative",
+   "bright"
+  ],
+  "light": 0.85,
+  "description": "For sale: a artsy home in Downtown Princeton. reclaimed wood, brick, terrazzo throughout.",
+  "highlights": [],
+  "agentId": "marcus",
+  "yearBuilt": 1939,
+  "artSeed": 277165,
+  "source": "mock"
+ },
+ {
+  "id": "pb-036",
+  "title": "Queen Anne Victorian",
+  "kind": "buy",
+  "propertyType": "condo",
+  "price": 1312000,
+  "beds": 5,
+  "baths": 4,
+  "sqft": 4274,
+  "neighborhood": "Princeton Junction",
+  "address": "59 Station Dr, Princeton Junction, NJ",
+  "lat": 40.3146,
+  "lng": -74.623,
+  "minutesToCampus": 13,
+  "commuteMode": "drive",
+  "petFriendly": false,
+  "availableFrom": "2027-09-01",
+  "style": "victorian",
+  "materials": [
+   "painted wood",
+   "stained glass"
+  ],
+  "colors": [
+   "sage",
+   "blush"
+  ],
+  "ambience": [
+   "cozy",
+   "charming"
+  ],
+  "light": 0.4914886453188956,
+  "description": "For sale: a victorian home in Princeton Junction. painted wood, stained glass throughout.",
+  "highlights": [],
+  "agentId": "elena",
+  "yearBuilt": 1933,
+  "artSeed": 285084,
+  "source": "mock"
+ },
+ {
+  "id": "pb-037",
+  "title": "Glass Pavilion House",
+  "kind": "buy",
+  "propertyType": "townhouse",
+  "price": 1444000,
+  "beds": 4,
+  "baths": 3,
+  "sqft": 3690,
+  "neighborhood": "Witherspoon-Jackson",
+  "address": "247 Jackson St, Princeton, NJ",
+  "lat": 40.35761,
+  "lng": -74.66165,
+  "minutesToCampus": 15,
+  "commuteMode": "walk",
+  "petFriendly": false,
+  "availableFrom": "Now",
+  "style": "contemporary",
+  "materials": [
+   "glass",
+   "fiber cement",
+   "walnut"
+  ],
+  "colors": [
+   "slate",
+   "white"
+  ],
+  "ambience": [
+   "bright",
+   "sleek"
+  ],
+  "light": 0.85,
+  "description": "For sale: a contemporary home in Witherspoon-Jackson. glass, fiber cement, walnut throughout.",
+  "highlights": [],
+  "agentId": "daniel",
+  "yearBuilt": 2002,
+  "artSeed": 293003,
+  "source": "mock"
+ },
+ {
+  "id": "pb-038",
+  "title": "Minimalist Courtyard House",
+  "kind": "buy",
+  "propertyType": "house",
+  "price": 1153000,
+  "beds": 4,
+  "baths": 3,
+  "sqft": 3358,
+  "neighborhood": "Montgomery",
+  "address": "322 Burnt Hill Rd, Montgomery, NJ",
+  "lat": 40.4144,
+  "lng": -74.69252,
+  "minutesToCampus": 19,
+  "commuteMode": "drive",
+  "petFriendly": true,
+  "availableFrom": "Now",
+  "style": "minimalist",
+  "materials": [
+   "concrete",
+   "glass",
+   "white oak"
+  ],
+  "colors": [
+   "white",
+   "warm grey"
+  ],
+  "ambience": [
+   "bright",
+   "calm"
+  ],
+  "light": 0.85,
+  "description": "For sale: a minimalist home in Montgomery. concrete, glass, white oak throughout.",
+  "highlights": [],
+  "agentId": "maya",
+  "yearBuilt": 1904,
+  "artSeed": 300922,
+  "source": "mock"
+ },
+ {
+  "id": "pb-039",
+  "title": "Center-Hall Colonial",
+  "kind": "buy",
+  "propertyType": "townhouse",
+  "price": 1248000,
+  "beds": 2,
+  "baths": 1.5,
+  "sqft": 2219,
+  "neighborhood": "Jugtown",
+  "address": "285 Harrison St, Princeton, NJ",
+  "lat": 40.35263,
+  "lng": -74.64833,
+  "minutesToCampus": 15,
+  "commuteMode": "walk",
+  "petFriendly": true,
+  "availableFrom": "2027-06-01",
+  "style": "colonial",
+  "materials": [
+   "brick",
+   "clapboard",
+   "hardwood"
+  ],
+  "colors": [
+   "red brick",
+   "cream"
+  ],
+  "ambience": [
+   "classic",
+   "quiet"
+  ],
+  "light": 0.3723047551931813,
+  "description": "For sale: a colonial home in Jugtown. brick, clapboard, hardwood throughout.",
+  "highlights": [],
+  "agentId": "elena",
+  "yearBuilt": 1965,
+  "artSeed": 308841,
+  "source": "mock"
+ },
+ {
+  "id": "pb-040",
+  "title": "Arts & Crafts Bungalow",
+  "kind": "buy",
+  "propertyType": "townhouse",
+  "price": 1112000,
+  "beds": 4,
+  "baths": 3,
+  "sqft": 3214,
+  "neighborhood": "Plainsboro",
+  "address": "95 Scudders Mill Rd, Plainsboro, NJ",
+  "lat": 40.33373,
+  "lng": -74.59071,
+  "minutesToCampus": 15,
+  "commuteMode": "drive",
+  "petFriendly": true,
+  "availableFrom": "Now",
+  "style": "craftsman",
+  "materials": [
+   "cedar shingle",
+   "stone",
+   "oak"
+  ],
+  "colors": [
+   "olive",
+   "cream"
+  ],
+  "ambience": [
+   "cozy",
+   "warm"
+  ],
+  "light": 0.6924929457949474,
+  "description": "For sale: a craftsman home in Plainsboro. cedar shingle, stone, oak throughout.",
+  "highlights": [],
+  "agentId": "daniel",
+  "yearBuilt": 1930,
+  "artSeed": 316760,
+  "source": "mock"
+ },
+ {
+  "id": "pb-041",
+  "title": "Gothic Revival Manor",
+  "kind": "buy",
+  "propertyType": "condo",
+  "price": 1300000,
+  "beds": 4,
+  "baths": 3,
+  "sqft": 3579,
+  "neighborhood": "Western Section",
+  "address": "343 Library Pl, Princeton, NJ",
+  "lat": 40.34942,
+  "lng": -74.67528,
+  "minutesToCampus": 20,
+  "commuteMode": "walk",
+  "petFriendly": true,
+  "availableFrom": "Now",
+  "style": "gothic",
+  "materials": [
+   "stone",
+   "slate",
+   "dark wood"
+  ],
+  "colors": [
+   "charcoal",
+   "moss"
+  ],
+  "ambience": [
+   "quiet",
+   "historic"
+  ],
+  "light": 0.6853182533057406,
+  "description": "For sale: a gothic home in Western Section. stone, slate, dark wood throughout.",
+  "highlights": [],
+  "agentId": "elena",
+  "yearBuilt": 1973,
+  "artSeed": 324679,
+  "source": "mock"
+ },
+ {
+  "id": "pb-042",
+  "title": "White Barn Residence",
+  "kind": "buy",
+  "propertyType": "house",
+  "price": 1314000,
+  "beds": 4,
+  "baths": 3.5,
+  "sqft": 3591,
+  "neighborhood": "Rocky Hill",
+  "address": "98 Crescent Ave, Rocky Hill, NJ",
+  "lat": 40.40164,
+  "lng": -74.63984,
+  "minutesToCampus": 16,
+  "commuteMode": "drive",
+  "petFriendly": false,
+  "availableFrom": "2027-08-01",
+  "style": "modern farmhouse",
+  "materials": [
+   "board and batten",
+   "black steel",
+   "pine"
+  ],
+  "colors": [
+   "white",
+   "black"
+  ],
+  "ambience": [
+   "cozy",
+   "airy"
+  ],
+  "light": 0.35965137474704534,
+  "description": "For sale: a modern farmhouse home in Rocky Hill. board and batten, black steel, pine throughout.",
+  "highlights": [],
+  "agentId": "maya",
+  "yearBuilt": 1989,
+  "artSeed": 332598,
+  "source": "mock"
+ },
+ {
+  "id": "pb-043",
+  "title": "Kingston Canal Lot",
+  "kind": "land",
+  "propertyType": "land",
+  "price": 245000,
+  "beds": 0,
+  "baths": 0,
+  "sqft": 52272,
+  "neighborhood": "Kingston",
+  "address": "40 Main St, Kingston, NJ",
+  "lat": 40.38096,
+  "lng": -74.61653,
+  "minutesToCampus": 14,
+  "commuteMode": "drive",
+  "petFriendly": true,
+  "availableFrom": "2027-08-01",
+  "style": "land",
+  "materials": [],
+  "colors": [],
+  "ambience": [
+   "open",
+   "quiet"
+  ],
+  "light": 1,
+  "description": "1.2 acres of buildable land in Kingston.",
+  "highlights": [],
+  "agentId": "priya",
+  "yearBuilt": 1957,
+  "artSeed": 340517,
+  "source": "mock"
+ },
+ {
+  "id": "pb-044",
+  "title": "Montgomery Orchard Land",
+  "kind": "land",
+  "propertyType": "land",
+  "price": 620000,
+  "beds": 0,
+  "baths": 0,
+  "sqft": 392040,
+  "neighborhood": "Montgomery",
+  "address": "300 Cherry Valley Rd, Montgomery, NJ",
+  "lat": 40.41184,
+  "lng": -74.69305,
+  "minutesToCampus": 18,
+  "commuteMode": "drive",
+  "petFriendly": false,
+  "availableFrom": "2027-09-01",
+  "style": "land",
+  "materials": [],
+  "colors": [],
+  "ambience": [
+   "open",
+   "quiet"
+  ],
+  "light": 1,
+  "description": "9 acres of buildable land in Montgomery.",
+  "highlights": [],
+  "agentId": "marcus",
+  "yearBuilt": 1899,
+  "artSeed": 348436,
+  "source": "mock"
+ },
+ {
+  "id": "pb-045",
+  "title": "Rocky Hill Ridge Lot",
+  "kind": "land",
+  "propertyType": "land",
+  "price": 199000,
+  "beds": 0,
+  "baths": 0,
+  "sqft": 34848,
+  "neighborhood": "Rocky Hill",
+  "address": "318 Washington St, Rocky Hill, NJ",
+  "lat": 40.39922,
+  "lng": -74.64016,
+  "minutesToCampus": 15,
+  "commuteMode": "drive",
+  "petFriendly": true,
+  "availableFrom": "2027-07-01",
+  "style": "land",
+  "materials": [],
+  "colors": [],
+  "ambience": [
+   "open",
+   "quiet"
+  ],
+  "light": 1,
+  "description": "0.8 acres of buildable land in Rocky Hill.",
+  "highlights": [],
+  "agentId": "elena",
+  "yearBuilt": 1963,
+  "artSeed": 356355,
+  "source": "mock"
+ },
+ {
+  "id": "pb-046",
+  "title": "Palmer Square Guest Flat",
+  "kind": "stay",
+  "propertyType": "suite",
+  "price": 219,
+  "beds": 1,
+  "baths": 1,
+  "sqft": 480,
+  "neighborhood": "Downtown Princeton",
+  "address": "79 Palmer Sq W, Princeton, NJ",
+  "lat": 40.35353,
+  "lng": -74.66362,
+  "minutesToCampus": 9,
+  "commuteMode": "walk",
+  "petFriendly": false,
+  "availableFrom": "Now",
+  "style": "scandinavian",
+  "materials": [
+   "birch",
+   "linen",
+   "white oak"
+  ],
+  "colors": [
+   "white",
+   "sand"
+  ],
+  "ambience": [
+   "bright",
+   "calm",
+   "cozy"
+  ],
+  "light": 0.85,
+  "description": "Short stay in Downtown Princeton — ideal while you house-hunt.",
+  "highlights": [],
+  "agentId": "daniel",
+  "yearBuilt": 1963,
+  "artSeed": 364274,
+  "source": "mock"
+ },
+ {
+  "id": "pb-047",
+  "title": "Lake Carnegie Cottage Stay",
+  "kind": "stay",
+  "propertyType": "suite",
+  "price": 245,
+  "beds": 1,
+  "baths": 1,
+  "sqft": 480,
+  "neighborhood": "Riverside",
+  "address": "297 Prospect Ave, Princeton, NJ",
+  "lat": 40.33551,
+  "lng": -74.64658,
+  "minutesToCampus": 26,
+  "commuteMode": "walk",
+  "petFriendly": false,
+  "availableFrom": "Now",
+  "style": "craftsman",
+  "materials": [
+   "cedar shingle",
+   "stone",
+   "oak"
+  ],
+  "colors": [
+   "olive",
+   "cream"
+  ],
+  "ambience": [
+   "cozy",
+   "warm"
+  ],
+  "light": 0.6989935747929849,
+  "description": "Short stay in Riverside — ideal while you house-hunt.",
+  "highlights": [],
+  "agentId": "elena",
+  "yearBuilt": 1938,
+  "artSeed": 372193,
+  "source": "mock"
+ },
+ {
+  "id": "pb-048",
+  "title": "Junction Station Suites",
+  "kind": "stay",
+  "propertyType": "suite",
+  "price": 159,
+  "beds": 1,
+  "baths": 1,
+  "sqft": 480,
+  "neighborhood": "Princeton Junction",
+  "address": "38 Station Dr, Princeton Junction, NJ",
+  "lat": 40.31899,
+  "lng": -74.61961,
+  "minutesToCampus": 13,
+  "commuteMode": "drive",
+  "petFriendly": true,
+  "availableFrom": "Now",
+  "style": "contemporary",
+  "materials": [
+   "glass",
+   "fiber cement",
+   "walnut"
+  ],
+  "colors": [
+   "slate",
+   "white"
+  ],
+  "ambience": [
+   "bright",
+   "sleek"
+  ],
+  "light": 0.85,
+  "description": "Short stay in Princeton Junction — ideal while you house-hunt.",
+  "highlights": [],
+  "agentId": "marcus",
+  "yearBuilt": 1960,
+  "artSeed": 380112,
+  "source": "mock"
+ },
+ {
+  "id": "pb-049",
+  "title": "Route 1 Office Suite",
+  "kind": "commercial",
+  "propertyType": "office",
+  "price": 4200,
+  "beds": 0,
+  "baths": 0,
+  "sqft": 1400,
+  "neighborhood": "West Windsor",
+  "address": "191 Village Rd E, West Windsor, NJ",
+  "lat": 40.29751,
+  "lng": -74.61265,
+  "minutesToCampus": 17,
+  "commuteMode": "drive",
+  "petFriendly": false,
+  "availableFrom": "2027-08-15",
+  "style": "contemporary",
+  "materials": [
+   "glass",
+   "fiber cement",
+   "walnut"
+  ],
+  "colors": [
+   "slate",
+   "white"
+  ],
+  "ambience": [
+   "bright",
+   "sleek"
+  ],
+  "light": 0.85,
+  "description": "Flexible office suite near Route 1 and the train.",
+  "highlights": [],
+  "agentId": "elena",
+  "yearBuilt": 1915,
+  "artSeed": 388031,
+  "source": "mock"
+ }
+]

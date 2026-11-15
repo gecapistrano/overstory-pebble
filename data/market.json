@@ -1,0 +1,552 @@
+{
+ "generatedAt": "2026-11-15",
+ "source": "CoStar data kit (Houston + Los Angeles)",
+ "demo": {
+  "city": "Houston",
+  "neighborhood": "Greater Heights"
+ },
+ "cities": {
+  "Houston": {
+   "anchor": "Downtown Houston",
+   "residential": {
+    "activeForSale": 564,
+    "medianListPrice": 339900,
+    "medianPricePerSqft": 172,
+    "medianDaysOnMarket": 38,
+    "priceCutSharePct": 45,
+    "medianPriceCutPct": 5.1,
+    "soldLast12m": 920,
+    "medianSoldPrice": null,
+    "medianLastAskOfSold": 340000,
+    "medianDaysToSell": 69,
+    "leasedLast12m": 96,
+    "medianLeasedRent": 2300,
+    "activeForRent": 23,
+    "medianHomeRent": 2200
+   },
+   "neighborhoods": [
+    {
+     "name": "Champions",
+     "activeForSale": 27,
+     "medianListPrice": 349900,
+     "medianPricePerSqft": 131,
+     "medianDaysOnMarket": 32,
+     "priceCutSharePct": 44,
+     "medianPriceCutPct": 3,
+     "soldLast12m": 30,
+     "medianSoldPrice": null,
+     "medianLastAskOfSold": 317450,
+     "medianDaysToSell": 65,
+     "leasedLast12m": 4,
+     "medianLeasedRent": 2875,
+     "activeForRent": 0,
+     "medianHomeRent": null
+    },
+    {
+     "name": "Uptown-Galleria District",
+     "activeForSale": 27,
+     "medianListPrice": 253510,
+     "medianPricePerSqft": 179,
+     "medianDaysOnMarket": 60,
+     "priceCutSharePct": 37,
+     "medianPriceCutPct": 8.5,
+     "soldLast12m": 23,
+     "medianSoldPrice": null,
+     "medianLastAskOfSold": 285000,
+     "medianDaysToSell": 78,
+     "leasedLast12m": 1,
+     "medianLeasedRent": 2200,
+     "activeForRent": 2,
+     "medianHomeRent": 2100
+    },
+    {
+     "name": "Clear Lake",
+     "activeForSale": 23,
+     "medianListPrice": 379900,
+     "medianPricePerSqft": 168,
+     "medianDaysOnMarket": 17,
+     "priceCutSharePct": 48,
+     "medianPriceCutPct": 3.9,
+     "soldLast12m": 47,
+     "medianSoldPrice": null,
+     "medianLastAskOfSold": 425000,
+     "medianDaysToSell": 63,
+     "leasedLast12m": 4,
+     "medianLeasedRent": 2400,
+     "activeForRent": 0,
+     "medianHomeRent": null
+    },
+    {
+     "name": "Greater Heights",
+     "activeForSale": 23,
+     "medianListPrice": 499000,
+     "medianPricePerSqft": 241,
+     "medianDaysOnMarket": 24,
+     "priceCutSharePct": 22,
+     "medianPriceCutPct": 5.3,
+     "soldLast12m": 47,
+     "medianSoldPrice": null,
+     "medianLastAskOfSold": 630000,
+     "medianDaysToSell": 60,
+     "leasedLast12m": 3,
+     "medianLeasedRent": 3150,
+     "activeForRent": 0,
+     "medianHomeRent": null
+    },
+    {
+     "name": "Energy Corridor",
+     "activeForSale": 18,
+     "medianListPrice": 444950,
+     "medianPricePerSqft": 157,
+     "medianDaysOnMarket": 44,
+     "priceCutSharePct": 50,
+     "medianPriceCutPct": 4.3,
+     "soldLast12m": 16,
+     "medianSoldPrice": null,
+     "medianLastAskOfSold": 681000,
+     "medianDaysToSell": 66,
+     "leasedLast12m": 1,
+     "medianLeasedRent": 2600,
+     "activeForRent": 2,
+     "medianHomeRent": 2500
+    },
+    {
+     "name": "Acres Homes",
+     "activeForSale": 17,
+     "medianListPrice": 339900,
+     "medianPricePerSqft": 181,
+     "medianDaysOnMarket": 30,
+     "priceCutSharePct": 41,
+     "medianPriceCutPct": 3.3,
+     "soldLast12m": 24,
+     "medianSoldPrice": null,
+     "medianLastAskOfSold": 314975,
+     "medianDaysToSell": 141,
+     "leasedLast12m": 6,
+     "medianLeasedRent": 2113,
+     "activeForRent": 1,
+     "medianHomeRent": 2100
+    },
+    {
+     "name": "Mid West",
+     "activeForSale": 16,
+     "medianListPrice": 127500,
+     "medianPricePerSqft": 144,
+     "medianDaysOnMarket": 24,
+     "priceCutSharePct": 31,
+     "medianPriceCutPct": 3.7,
+     "soldLast12m": 11,
+     "medianSoldPrice": null,
+     "medianLastAskOfSold": 249500,
+     "medianDaysToSell": 85,
+     "leasedLast12m": 3,
+     "medianLeasedRent": 2300,
+     "activeForRent": 0,
+     "medianHomeRent": null
+    },
+    {
+     "name": "Montrose",
+     "activeForSale": 15,
+     "medianListPrice": 799900,
+     "medianPricePerSqft": 264,
+     "medianDaysOnMarket": 19,
+     "priceCutSharePct": 33,
+     "medianPriceCutPct": 5.2,
+     "soldLast12m": 12,
+     "medianSoldPrice": null,
+     "medianLastAskOfSold": 637500,
+     "medianDaysToSell": 88,
+     "leasedLast12m": 1,
+     "medianLeasedRent": 1200,
+     "activeForRent": 1,
+     "medianHomeRent": 2300
+    },
+    {
+     "name": "Briar Village",
+     "activeForSale": 12,
+     "medianListPrice": 306998,
+     "medianPricePerSqft": 168,
+     "medianDaysOnMarket": 33,
+     "priceCutSharePct": 58,
+     "medianPriceCutPct": 4.5,
+     "soldLast12m": 16,
+     "medianSoldPrice": null,
+     "medianLastAskOfSold": 305000,
+     "medianDaysToSell": 55,
+     "leasedLast12m": 1,
+     "medianLeasedRent": 1750,
+     "activeForRent": 0,
+     "medianHomeRent": null
+    },
+    {
+     "name": "Oak Forest-Garden Oaks",
+     "activeForSale": 11,
+     "medianListPrice": 500000,
+     "medianPricePerSqft": 227,
+     "medianDaysOnMarket": 36,
+     "priceCutSharePct": 73,
+     "medianPriceCutPct": 5.6,
+     "soldLast12m": 25,
+     "medianSoldPrice": null,
+     "medianLastAskOfSold": 540000,
+     "medianDaysToSell": 79,
+     "leasedLast12m": 4,
+     "medianLeasedRent": 3498,
+     "activeForRent": 0,
+     "medianHomeRent": null
+    },
+    {
+     "name": "Alief",
+     "activeForSale": 11,
+     "medianListPrice": 239000,
+     "medianPricePerSqft": 126,
+     "medianDaysOnMarket": 29,
+     "priceCutSharePct": 45,
+     "medianPriceCutPct": 4.2,
+     "soldLast12m": 13,
+     "medianSoldPrice": null,
+     "medianLastAskOfSold": 235000,
+     "medianDaysToSell": 71,
+     "leasedLast12m": 0,
+     "medianLeasedRent": null,
+     "activeForRent": 1,
+     "medianHomeRent": 1750
+    },
+    {
+     "name": "Spring Branch Central",
+     "activeForSale": 10,
+     "medianListPrice": 557500,
+     "medianPricePerSqft": 207,
+     "medianDaysOnMarket": 28,
+     "priceCutSharePct": 20,
+     "medianPriceCutPct": 5.4,
+     "soldLast12m": 7,
+     "medianSoldPrice": null,
+     "medianLastAskOfSold": 399000,
+     "medianDaysToSell": 82,
+     "leasedLast12m": 1,
+     "medianLeasedRent": 3000,
+     "activeForRent": 0,
+     "medianHomeRent": null
+    }
+   ],
+   "apartments": {
+    "communities": 980,
+    "totalUnits": 278036,
+    "unitsAvailable": 29938,
+    "availabilityPct": 10.8,
+    "medianAskingRent": {
+     "studio": 1202,
+     "1bed": 1243,
+     "2bed": 1495,
+     "3bed": 1725
+    },
+    "newCommunitiesSince2020": 162,
+    "topManagers": [
+     {
+      "name": "Greystar Real Estate Partners",
+      "communities": 117
+     },
+     {
+      "name": "RPM",
+      "communities": 36
+     },
+     {
+      "name": "The Morgan Group",
+      "communities": 32
+     },
+     {
+      "name": "Indus Communities",
+      "communities": 29
+     },
+     {
+      "name": "Asset Living",
+      "communities": 28
+     }
+    ]
+   },
+   "commercialSales24m": {
+    "count": 299,
+    "confirmedVolume": 1071676405,
+    "medianPrice": 20400000
+   },
+   "employersNearAnchor": [
+    {
+     "name": "NRG Energy",
+     "employees": 2875
+    },
+    {
+     "name": "TC Energy",
+     "employees": 1536
+    },
+    {
+     "name": "Aramco",
+     "employees": 1360
+    },
+    {
+     "name": "Cheniere Energy",
+     "employees": 1009
+    },
+    {
+     "name": "U.S. Attorney's Office",
+     "employees": 880
+    },
+    {
+     "name": "PwC",
+     "employees": 646
+    },
+    {
+     "name": "Vinson & Elkins",
+     "employees": 600
+    },
+    {
+     "name": "NextDecade",
+     "employees": 575
+    }
+   ],
+   "pebbleInventory": {
+    "listings": 320,
+    "forSale": 170,
+    "forRent": 150,
+    "with3DTour": 320
+   }
+  },
+  "Los Angeles": {
+   "anchor": "Downtown LA",
+   "residential": {
+    "activeForSale": 107,
+    "medianListPrice": 945990,
+    "medianPricePerSqft": 622,
+    "medianDaysOnMarket": 47,
+    "priceCutSharePct": 38,
+    "medianPriceCutPct": 5.6,
+    "soldLast12m": 269,
+    "medianSoldPrice": 1000000,
+    "medianLastAskOfSold": 999999,
+    "medianDaysToSell": 74,
+    "leasedLast12m": 22,
+    "medianLeasedRent": 5998,
+    "activeForRent": 3,
+    "medianHomeRent": 5295
+   },
+   "neighborhoods": [
+    {
+     "name": "Downtown LA",
+     "activeForSale": 12,
+     "medianListPrice": 350000,
+     "medianPricePerSqft": 515,
+     "medianDaysOnMarket": 3,
+     "priceCutSharePct": 0,
+     "medianPriceCutPct": null,
+     "soldLast12m": 1,
+     "medianSoldPrice": 530000,
+     "medianLastAskOfSold": 570000,
+     "medianDaysToSell": 141,
+     "leasedLast12m": 1,
+     "medianLeasedRent": 2350,
+     "activeForRent": 0,
+     "medianHomeRent": null
+    },
+    {
+     "name": "Highland Park",
+     "activeForSale": 9,
+     "medianListPrice": 1929000,
+     "medianPricePerSqft": 735,
+     "medianDaysOnMarket": 86,
+     "priceCutSharePct": 33,
+     "medianPriceCutPct": 4.8,
+     "soldLast12m": 24,
+     "medianSoldPrice": 1202500,
+     "medianLastAskOfSold": 1250000,
+     "medianDaysToSell": 75,
+     "leasedLast12m": 0,
+     "medianLeasedRent": null,
+     "activeForRent": 0,
+     "medianHomeRent": null
+    },
+    {
+     "name": "East Los Angeles",
+     "activeForSale": 6,
+     "medianListPrice": 679000,
+     "medianPricePerSqft": 610,
+     "medianDaysOnMarket": 95,
+     "priceCutSharePct": 100,
+     "medianPriceCutPct": 8.1,
+     "soldLast12m": 4,
+     "medianSoldPrice": 807500,
+     "medianLastAskOfSold": 804950,
+     "medianDaysToSell": 85,
+     "leasedLast12m": 0,
+     "medianLeasedRent": null,
+     "activeForRent": 0,
+     "medianHomeRent": null
+    },
+    {
+     "name": "Hollywood",
+     "activeForSale": 5,
+     "medianListPrice": 1195000,
+     "medianPricePerSqft": 784,
+     "medianDaysOnMarket": 35,
+     "priceCutSharePct": 20,
+     "medianPriceCutPct": 7.4,
+     "soldLast12m": 3,
+     "medianSoldPrice": 660000,
+     "medianLastAskOfSold": 689000,
+     "medianDaysToSell": 49,
+     "leasedLast12m": 2,
+     "medianLeasedRent": 3000,
+     "activeForRent": 1,
+     "medianHomeRent": 4995
+    },
+    {
+     "name": "Melrose",
+     "activeForSale": 5,
+     "medianListPrice": 1358000,
+     "medianPricePerSqft": 750,
+     "medianDaysOnMarket": 130,
+     "priceCutSharePct": 0,
+     "medianPriceCutPct": null,
+     "soldLast12m": 1,
+     "medianSoldPrice": 1282500,
+     "medianLastAskOfSold": 1275000,
+     "medianDaysToSell": 69,
+     "leasedLast12m": 0,
+     "medianLeasedRent": null,
+     "activeForRent": 0,
+     "medianHomeRent": null
+    },
+    {
+     "name": "San Pedro",
+     "activeForSale": 5,
+     "medianListPrice": 955990,
+     "medianPricePerSqft": 518,
+     "medianDaysOnMarket": null,
+     "priceCutSharePct": 20,
+     "medianPriceCutPct": 0.9,
+     "soldLast12m": 0,
+     "medianSoldPrice": null,
+     "medianLastAskOfSold": null,
+     "medianDaysToSell": null,
+     "leasedLast12m": 0,
+     "medianLeasedRent": null,
+     "activeForRent": 0,
+     "medianHomeRent": null
+    },
+    {
+     "name": "Boyle Heights",
+     "activeForSale": 4,
+     "medianListPrice": 524450,
+     "medianPricePerSqft": 551,
+     "medianDaysOnMarket": 117,
+     "priceCutSharePct": 0,
+     "medianPriceCutPct": null,
+     "soldLast12m": 5,
+     "medianSoldPrice": 615000,
+     "medianLastAskOfSold": 619950,
+     "medianDaysToSell": 66,
+     "leasedLast12m": 0,
+     "medianLeasedRent": null,
+     "activeForRent": 0,
+     "medianHomeRent": null
+    },
+    {
+     "name": "El Sereno",
+     "activeForSale": 4,
+     "medianListPrice": 835000,
+     "medianPricePerSqft": 530,
+     "medianDaysOnMarket": 34,
+     "priceCutSharePct": 50,
+     "medianPriceCutPct": 5.8,
+     "soldLast12m": 18,
+     "medianSoldPrice": 900000,
+     "medianLastAskOfSold": 825000,
+     "medianDaysToSell": 103,
+     "leasedLast12m": 1,
+     "medianLeasedRent": 3500,
+     "activeForRent": 0,
+     "medianHomeRent": null
+    }
+   ],
+   "apartments": {
+    "communities": 767,
+    "totalUnits": 87266,
+    "unitsAvailable": 10099,
+    "availabilityPct": 11.6,
+    "medianAskingRent": {
+     "studio": 2008,
+     "1bed": 2495,
+     "2bed": 3299,
+     "3bed": 4181
+    },
+    "newCommunitiesSince2020": 176,
+    "topManagers": [
+     {
+      "name": "Greystar Real Estate Partners",
+      "communities": 40
+     },
+     {
+      "name": "Winstar Properties",
+      "communities": 34
+     },
+     {
+      "name": "Moss & Company",
+      "communities": 26
+     },
+     {
+      "name": "Jamison Properties",
+      "communities": 23
+     },
+     {
+      "name": "Beach Front Property Management, Inc.",
+      "communities": 16
+     }
+    ]
+   },
+   "commercialSales24m": {
+    "count": 152,
+    "confirmedVolume": 3407600635,
+    "medianPrice": 7900000
+   },
+   "employersNearAnchor": [
+    {
+     "name": "EY",
+     "employees": 1100
+    },
+    {
+     "name": "Children's Hospital Los Angeles",
+     "employees": 324
+    },
+    {
+     "name": "United States Secret Service",
+     "employees": 300
+    },
+    {
+     "name": "Whole Foods",
+     "employees": 300
+    },
+    {
+     "name": "Bottega Louie Restaurant & Gourmet Market",
+     "employees": 200
+    },
+    {
+     "name": "Conde Nast",
+     "employees": 138
+    },
+    {
+     "name": "Clune Construction",
+     "employees": 135
+    },
+    {
+     "name": "Shason",
+     "employees": 132
+    }
+   ],
+   "pebbleInventory": {
+    "listings": 140,
+    "forSale": 70,
+    "forRent": 70,
+    "with3DTour": 140
+   }
+  }
+ }
+}
