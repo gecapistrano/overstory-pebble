@@ -19,6 +19,7 @@ import { Avatar, Icon, Logo } from "@/components/ui";
 import { CostarMarket, MarketRecap } from "@/components/dashboard/MarketIntel";
 
 const TICK = 5000;
+const SECTIONS = [["sales", "Sales"], ["customers", "Customers"], ["market", "Market"]] as const;
 const ago = (t: number, at: number) => {
   const s = Math.max(0, Math.round((at - t) / 1000));
   return s < 10 ? "just now" : s < 60 ? `${s} sec ago` : s < 3600 ? `${Math.round(s / 60)} min ago` : s < 86400 ? `${Math.round(s / 3600)} hr ago` : `${Math.round(s / 86400)} d ago`;
@@ -41,6 +42,24 @@ export default function Dashboard() {
   }, []);
   const snap = useMemo(() => snapshot(getState(), city, now()), [city, beat, leads, views, searches]);
 
+  // which section is in view, for the highlighted tab
+  const [active, setActive] = useState<string>(SECTIONS[0][0]);
+  useEffect(() => {
+    const onScroll = () => {
+      const atBottom = window.innerHeight + window.scrollY >= document.documentElement.scrollHeight - 4;
+      let cur: string = SECTIONS[0][0];
+      for (const [id] of SECTIONS) {
+        const el = document.getElementById(id);
+        if (el && el.getBoundingClientRect().top <= 120) cur = id;
+      }
+      setActive(atBottom ? SECTIONS[SECTIONS.length - 1][0] : cur);
+    };
+    onScroll();
+    window.addEventListener("scroll", onScroll, { passive: true });
+    window.addEventListener("resize", onScroll);
+    return () => { window.removeEventListener("scroll", onScroll); window.removeEventListener("resize", onScroll); };
+  }, []);
+
   return (
     <div className="min-h-screen bg-canvas text-ink">
       {/* navy top bar, as in the OverStory broker-desk design */}
@@ -51,11 +70,6 @@ export default function Dashboard() {
             {CITIES.map((c) => (
               <button key={c} onClick={() => setCity(c)} aria-pressed={city === c} className={`border-b-2 px-3 text-[13px] font-medium ${city === c ? "border-[#5FA8FF] text-white" : "border-transparent text-white/60 hover:text-white"}`}>{c}</button>
             ))}
-          </nav>
-          <div className="flex-1" />
-          <nav className="hidden sm:flex items-center gap-2 text-[13px]">
-            <Link href="/app" className="rounded-md px-3 py-1.5 text-white/75 hover:text-white">Client app</Link>
-            <Link href="/agent" className="rounded-md bg-navy-700 px-3 py-1.5 font-medium hover:bg-navy-500">Agent app</Link>
           </nav>
         </div>
       </div>
@@ -69,7 +83,10 @@ export default function Dashboard() {
 
       <nav className="sticky top-0 z-30 bg-canvas/90 backdrop-blur border-b border-line">
         <div className="mx-auto max-w-[1400px] px-4 md:px-8 flex gap-6 text-sm">
-          {[["sales", "Sales"], ["customers", "Customers"], ["market", "Market"]].map(([id, label]) => <a key={id} href={`#${id}`} className="py-3 text-stone hover:text-ink">{label}</a>)}
+          {SECTIONS.map(([id, label]) => (
+            <a key={id} href={`#${id}`} onClick={() => setActive(id)} aria-current={active === id ? "location" : undefined}
+              className={`-mb-px border-b-2 py-3 transition-colors ${active === id ? "border-sage text-ink font-medium" : "border-transparent text-stone hover:text-ink"}`}>{label}</a>
+          ))}
         </div>
       </nav>
 
