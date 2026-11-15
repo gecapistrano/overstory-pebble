@@ -104,7 +104,7 @@ export default function MapView3D({
     let ro: ResizeObserver | null = null;
     (async () => {
       try {
-        const maplibregl = (await import("maplibre-gl")).default;
+        const maplibregl = await import("maplibre-gl");
         if (!alive || !ref.current || mapRef.current) return;
         const map = new maplibregl.Map({
           container: ref.current,
@@ -180,7 +180,7 @@ export default function MapView3D({
     if (!ready) return;
     let alive = true;
     (async () => {
-      const maplibregl = (await import("maplibre-gl")).default;
+      const maplibregl = await import("maplibre-gl");
       const map = mapRef.current;
       if (!alive || !map) return;
       markers.current.forEach((m) => m.remove());
