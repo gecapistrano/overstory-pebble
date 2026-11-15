@@ -21,3 +21,6 @@ __pycache__/
 .vercel
 /.next-*/
 /.cache/
+
+# demo-video tooling (local only)
+video-tools/
