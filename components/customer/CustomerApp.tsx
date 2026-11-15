@@ -644,13 +644,60 @@ function Results(p: {
   onHome: () => void; onOpen: (l: Listing) => void; onTour: (l: Listing) => void; onChip: (c: string) => void; onMic: () => void; onPhoto: (f: File) => void; onSend: (text: string) => void;
 }) {
   const rail = useRef<HTMLDivElement>(null);
+  // the index the rail is currently showing; when `active` changes from the
+  // user's own swipe we must not scroll back, or we fight their gesture
+  const shown = useRef(p.active);
   const [typeOpen, setTypeOpen] = useState(false);
   const [typing, setTyping] = useState("");
+  const STEP = 312; // card width (300) + gap (12)
+  useEffect(() => {
+    const el = rail.current;
+    if (!el || shown.current === p.active) return;
+    shown.current = p.active;
+    el.scrollTo({ left: p.active * STEP, behavior: "smooth" });
+  }, [p.active]);
+  // mouse wheels scroll vertically; turn that into horizontal movement so the
+  // carousel works on desktop without a trackpad
   useEffect(() => {
     const el = rail.current;
     if (!el) return;
-    el.scrollTo({ left: p.active * 312, behavior: "smooth" });
-  }, [p.active]);
+    const onWheel = (e: WheelEvent) => {
+      if (Math.abs(e.deltaY) <= Math.abs(e.deltaX)) return;
+      const max = el.scrollWidth - el.clientWidth;
+      if ((e.deltaY < 0 && el.scrollLeft <= 0) || (e.deltaY > 0 && el.scrollLeft >= max)) return;
+      e.preventDefault();
+      el.scrollBy({ left: e.deltaY, behavior: "auto" });
+    };
+    el.addEventListener("wheel", onWheel, { passive: false });
+    return () => el.removeEventListener("wheel", onWheel);
+  }, [p.showMap]);
+  const go = (i: number) => { const n = Math.max(0, Math.min(p.results.length - 1, i)); p.setActive(n); };
+  // click-and-drag with a mouse, the way a finger swipes
+  const drag = useRef<{ x: number; left: number; moved: boolean } | null>(null);
+  const onPointerDown = (e: React.PointerEvent<HTMLDivElement>) => {
+    if (e.pointerType !== "mouse" || !rail.current) return;
+    drag.current = { x: e.clientX, left: rail.current.scrollLeft, moved: false };
+  };
+  const onPointerMove = (e: React.PointerEvent<HTMLDivElement>) => {
+    const d = drag.current, el = rail.current;
+    if (!d || !el) return;
+    const dx = e.clientX - d.x;
+    if (!d.moved && Math.abs(dx) > 5) { d.moved = true; el.style.scrollSnapType = "none"; el.setPointerCapture(e.pointerId); }
+    if (d.moved) el.scrollLeft = d.left - dx;
+  };
+  const endDrag = () => {
+    const d = drag.current, el = rail.current;
+    drag.current = null;
+    if (!d?.moved || !el) return;
+    const i = Math.max(0, Math.min(p.results.length - 1, Math.round(el.scrollLeft / STEP)));
+    el.style.scrollSnapType = "";
+    shown.current = -1; // force the snap-back scroll even if the index didn't change
+    if (i === p.active) { shown.current = i; el.scrollTo({ left: i * STEP, behavior: "smooth" }); } else p.setActive(i);
+    dragEnded.current = Date.now();
+  };
+  // swallow the click that follows a drag so it doesn't open the card
+  const dragEnded = useRef(0);
+  const onClickCapture = (e: React.MouseEvent) => { if (Date.now() - dragEnded.current < 250) { e.stopPropagation(); e.preventDefault(); } };
   const tr = useT();
   const words = p.reply.split(" ");
   const send = () => { const t = typing.trim(); if (!t) return; setTyping(""); setTypeOpen(false); p.onSend(t); };
@@ -683,10 +730,37 @@ function Results(p: {
         </div>
       ) : (
         <div className="flex-1 min-h-0 flex flex-col">
-          <div ref={rail} onScroll={(e) => { const i = Math.round(e.currentTarget.scrollLeft / 312); if (i !== p.active) p.setActive(i); }} className="flex gap-3 overflow-x-auto snap-x snap-mandatory no-scrollbar px-[45px] pb-4 pt-1">
-            {p.results.map((l, i) => <div key={l.id} className="rise" style={{ animationDelay: `${200 + i * 90}ms` }}><Card l={l} c={p.criteria} onOpen={() => p.onOpen(l)} /></div>)}
+          <div className="relative group">
+            <div
+              ref={rail}
+              onScroll={(e) => {
+                if (drag.current?.moved) return;
+                const i = Math.round(e.currentTarget.scrollLeft / STEP);
+                if (i !== shown.current && i >= 0 && i < p.results.length) { shown.current = i; p.setActive(i); }
+              }}
+              onPointerDown={onPointerDown} onPointerMove={onPointerMove} onPointerUp={endDrag} onPointerCancel={endDrag} onClickCapture={onClickCapture}
+              onKeyDown={(e) => { if (e.key === "ArrowRight") { e.preventDefault(); go(p.active + 1); } if (e.key === "ArrowLeft") { e.preventDefault(); go(p.active - 1); } }}
+              tabIndex={0} aria-label={tr("homes")} aria-roledescription="carousel"
+              className="flex gap-3 overflow-x-auto snap-x snap-mandatory no-scrollbar overscroll-x-contain touch-pan-x px-[45px] pb-4 pt-1 cursor-grab active:cursor-grabbing select-none outline-none"
+            >
+              {p.results.map((l, i) => <div key={l.id} className="rise shrink-0 snap-center" style={{ animationDelay: `${200 + i * 90}ms` }}><Card l={l} c={p.criteria} onOpen={() => p.onOpen(l)} /></div>)}
+            </div>
+            {p.results.length > 1 && (
+              <>
+                <button onClick={() => go(p.active - 1)} disabled={p.active === 0} aria-label="Previous home" className="absolute left-2 top-[88px] -translate-y-1/2 grid h-9 w-9 place-items-center rounded-full bg-card/95 text-ink shadow-card transition-opacity disabled:opacity-0 disabled:pointer-events-none [@media(hover:none)]:hidden">
+                  <Icon name="back" className="h-4 w-4" />
+                </button>
+                <button onClick={() => go(p.active + 1)} disabled={p.active >= p.results.length - 1} aria-label="Next home" className="absolute right-2 top-[88px] -translate-y-1/2 grid h-9 w-9 place-items-center rounded-full bg-card/95 text-ink shadow-card transition-opacity disabled:opacity-0 disabled:pointer-events-none [@media(hover:none)]:hidden">
+                  <Icon name="back" className="h-4 w-4 rotate-180" />
+                </button>
+              </>
+            )}
           </div>
-          <div className="flex justify-center gap-1.5">{p.results.map((_, i) => <span key={i} className={`h-1.5 rounded-full transition-all ${i === p.active ? "w-5 bg-sage" : "w-1.5 bg-line"}`} />)}</div>
+          <div className="flex justify-center gap-0.5">{p.results.map((_, i) => (
+            <button key={i} onClick={() => go(i)} aria-label={`Home ${i + 1} of ${p.results.length}`} aria-current={i === p.active} className="grid h-5 place-items-center px-0.5">
+              <span className={`block h-1.5 rounded-full transition-all ${i === p.active ? "w-5 bg-sage" : "w-1.5 bg-line hover:bg-stone"}`} />
+            </button>
+          ))}</div>
         </div>
       )}
 
