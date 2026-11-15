@@ -6,6 +6,8 @@ Pebble is your brokerage's AI concierge: it **listens to your clients, then brie
 
 Built for HackPrinceton 2026, Business & Enterprise track.
 
+**Live demo:** https://overstory-pebble.vercel.app
+
 ---
 
 ## The problem
