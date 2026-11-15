@@ -8,6 +8,7 @@ import { deleteAccount, exportMyData, logIn, logOut, PRIVACY_VERSION, signUp, up
 import type { CustomerProfile } from "@/lib/types";
 
 const field = "h-12 w-full rounded-full border border-line bg-card px-4 text-[15px] outline-none focus:border-sage placeholder:text-stone";
+const passwordField = `${field} password-field`;
 
 function Screen({ title, sub, onBack, children }: { title: string; sub?: string; onBack?: () => void; children: ReactNode }) {
   return (
@@ -61,7 +62,7 @@ export function AuthFlow({ start = "welcome", reason, onDone, onClose }: { start
       <div className="absolute inset-0 z-40 mx-auto flex flex-col items-center bg-canvas px-8 text-center fadein">
         <div className="pt-[calc(var(--notch,3.5rem)+0.5rem)] flex items-center gap-2 text-[17px] font-semibold text-ink md:invisible"><Mascot className="h-10 w-10 animate-float" />Pebble</div>
         <div className="flex-1 w-full max-w-[400px] flex flex-col items-center justify-center -mt-6">
-          <h1 className="font-display text-[1.9rem] leading-tight">Say the house.<br />Find your home.</h1>
+          <h1 className="font-display text-[1.9rem] leading-tight">Describe the house.<br />Find your home.</h1>
           <p className="mt-4 text-[15px] text-stone">{reason || "Make an account to save the homes you love and get matches that fit you better."}</p>
           <button onClick={() => setMode("signup")} className="mt-10 w-full h-14 rounded-full bg-clay text-white text-[17px]">Create an account</button>
           <button onClick={() => setMode("login")} className="mt-3 w-full h-14 rounded-full border border-line bg-card text-[17px]">Log in</button>
@@ -82,7 +83,7 @@ export function AuthFlow({ start = "welcome", reason, onDone, onClose }: { start
       <Screen title="Welcome back" sub={reason} onBack={() => (start === "login" ? onClose() : setMode("welcome"))}>
         <form className="space-y-2.5" onSubmit={(e) => { e.preventDefault(); void go(); }}>
           <input aria-label="Email" type="text" inputMode="email" autoComplete="email" value={d.email} onChange={set("email")} placeholder="Email" className={field} />
-          <input aria-label="Password" type="password" autoComplete="current-password" value={d.password} onChange={set("password")} placeholder="Password" className={field} />
+          <input aria-label="Password" type="password" autoComplete="current-password" value={d.password} onChange={set("password")} placeholder="Password" className={passwordField} />
           {err && <p className="text-sm text-clay pt-1">{err}</p>}
           <button disabled={busy} className="mt-3 w-full h-14 rounded-full bg-clay text-white text-[17px] disabled:opacity-50">{busy ? "One moment…" : "Log in"}</button>
         </form>
@@ -97,9 +98,9 @@ export function AuthFlow({ start = "welcome", reason, onDone, onClose }: { start
         <form className="space-y-2.5" onSubmit={(e) => { e.preventDefault(); setErr(""); setMode("consent"); }}>
           <input aria-label="Full name" autoComplete="name" value={d.name} onChange={set("name")} placeholder="Full name" className={field} />
           <input aria-label="Email" type="text" inputMode="email" autoComplete="email" value={d.email} onChange={set("email")} placeholder="Email" className={field} />
-          <input aria-label="Password" type="password" autoComplete="new-password" value={d.password} onChange={set("password")} placeholder="Password" className={field} />
-          <div className="flex gap-2.5">
-            <input aria-label="Age" inputMode="numeric" value={d.age} onChange={(e) => setD({ ...d, age: e.target.value.replace(/\D/g, "").slice(0, 3) })} placeholder="Age" className={`${field} !w-24 shrink-0`} />
+          <input aria-label="Password" type="password" autoComplete="new-password" value={d.password} onChange={set("password")} placeholder="Password" className={passwordField} />
+          <div className="grid grid-cols-[6rem_minmax(0,1fr)] gap-2.5">
+            <input aria-label="Age" inputMode="numeric" value={d.age} onChange={(e) => setD({ ...d, age: e.target.value.replace(/\D/g, "").slice(0, 3) })} placeholder="Age" className={field} />
             <input aria-label="Where you live now" autoComplete="address-level2" value={d.location} onChange={set("location")} placeholder="Where you live now" className={field} />
           </div>
           <input aria-label="Phone (optional)" type="tel" autoComplete="tel" value={d.phone} onChange={set("phone")} placeholder="Phone (optional)" className={field} />
@@ -180,8 +181,8 @@ export function ProfileScreen({ account, onBack }: { account: CustomerProfile; o
       <h3 className="text-sm text-stone mb-2">Your details</h3>
       <div className="space-y-2.5">
         <input aria-label="Full name" value={edit.name} onChange={(e) => setEdit({ ...edit, name: e.target.value })} placeholder="Full name" className={field} />
-        <div className="flex gap-2.5">
-          <input aria-label="Age" inputMode="numeric" value={edit.age} onChange={(e) => setEdit({ ...edit, age: e.target.value.replace(/\D/g, "").slice(0, 3) })} placeholder="Age" className={`${field} !w-24 shrink-0`} />
+        <div className="grid grid-cols-[6rem_minmax(0,1fr)] gap-2.5">
+          <input aria-label="Age" inputMode="numeric" value={edit.age} onChange={(e) => setEdit({ ...edit, age: e.target.value.replace(/\D/g, "").slice(0, 3) })} placeholder="Age" className={field} />
           <input aria-label="Where you live now" value={edit.location} onChange={(e) => setEdit({ ...edit, location: e.target.value })} placeholder="Where you live now" className={field} />
         </div>
         <input aria-label="Phone" value={edit.phone} onChange={(e) => setEdit({ ...edit, phone: e.target.value })} placeholder="Phone" className={field} />

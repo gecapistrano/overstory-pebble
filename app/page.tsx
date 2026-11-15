@@ -36,7 +36,7 @@ export default function Hub() {
     <div className="min-h-screen bg-blush">
       <div className="max-w-5xl mx-auto px-4 sm:px-6 py-14">
         <Logo className="text-[22px]" />
-        <h1 className="mt-10 text-[44px] md:text-[56px] leading-[1.02] font-bold tracking-tight">Say the house.<br />Find your home.</h1>
+        <h1 className="mt-10 text-[44px] md:text-[56px] leading-[1.02] font-bold tracking-tight">Describe the house.<br />Find your home.</h1>
         <p className="mt-4 text-[18px] text-[#4A586D] max-w-xl">Pebble is a voice-first property concierge for brokerages, powered by an Agentic Assistant. <b className="text-ink">The Agentic Assistant suggests, a Real Estate Agent verifies.</b> We help brokerages close.</p>
 
         {/* The problem */}

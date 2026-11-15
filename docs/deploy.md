@@ -1,6 +1,6 @@
 # Pebble — Deployment & Infrastructure
 
-> **Say the house. Find your home.** · AI suggests, a human verifies.
+> **Describe the house. Find your home.** · AI suggests, a human verifies.
 
 How Pebble runs: environments, services, secrets, data, jobs, CI/CD, monitoring, security and the demo-day runbook. Read with `system-design.md` (architecture and contracts) and `idea.md` (features).
 

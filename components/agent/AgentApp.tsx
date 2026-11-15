@@ -4,7 +4,7 @@ import type { Lead, LeadStatus, Listing } from "@/lib/types";
 import { getListing, listingsSync, analyzePhotos } from "@/lib/adapters";
 import { saveUpload } from "@/lib/adapters/agentUploads";
 import { agentById, bedsBaths, commute, price } from "@/lib/recap";
-import { contactClient, nudgeFor, now, sendNudge, setCheck, setStatus, useStore, verifyLead } from "@/lib/store";
+import { contactClient, nudgeFor, now, sendNudge, sendTourOptions, setCheck, setStatus, useStore, verifyLead } from "@/lib/store";
 import { aiDraft, aiFollowup } from "@/lib/ai";
 import { DEAL, dealTypeOf, fmtDay, fmtTime } from "@/lib/closing";
 import HomeArt from "@/components/HomeArt";
@@ -81,7 +81,7 @@ export default function AgentApp() {
           </button>
         ))}
       </nav>
-      {lead && <LeadView lead={lead} onBack={() => setOpen(null)} onContact={() => setCompose(lead.id)} />}
+      {lead && <LeadView key={lead.id} lead={lead} onBack={() => setOpen(null)} onContact={() => setCompose(lead.id)} />}
       {compose && lead && <Composer lead={lead} onClose={() => setCompose(null)} />}
       {cheer && <SaleCheer lead={cheer} onClose={() => setCheer(null)} />}
     </div>
@@ -139,7 +139,26 @@ function Inbox({ leads, onOpen, nudges, goNudges }: { leads: Lead[]; onOpen: (id
   );
 }
 
+const TOUR_TIME_CHOICES = Array.from({ length: 19 }, (_, index) => {
+  const minutes = 9 * 60 + index * 30;
+  return `${String(Math.floor(minutes / 60)).padStart(2, "0")}:${String(minutes % 60).padStart(2, "0")}`;
+});
+
+function localDateValue(date: Date) {
+  return `${date.getFullYear()}-${String(date.getMonth() + 1).padStart(2, "0")}-${String(date.getDate()).padStart(2, "0")}`;
+}
+
+function formatTourOption(date: string, time: string) {
+  const [year, month, day] = date.split("-").map(Number);
+  const [hour, minute] = time.split(":").map(Number);
+  return new Intl.DateTimeFormat(undefined, {
+    weekday: "short", month: "short", day: "numeric", year: "numeric", hour: "numeric", minute: "2-digit",
+  }).format(new Date(year, month - 1, day, hour, minute));
+}
+
 function LeadView({ lead, onBack, onContact }: { lead: Lead; onBack: () => void; onContact: () => void }) {
+  const [tourTimes, setTourTimes] = useState([{ date: "", time: "" }, { date: "", time: "" }, { date: "", time: "" }]);
+  const minTourDate = localDateValue(new Date());
   const homes = lead.suggestions.map(getListing).filter(Boolean) as Listing[];
   const allChecked = Object.values(lead.checklist).every(Boolean);
   const checks: [keyof Lead["checklist"], string, string][] = [
@@ -149,6 +168,14 @@ function LeadView({ lead, onBack, onContact }: { lead: Lead; onBack: () => void;
     ["legal", "Legal, zoning & fair-housing OK", "No discriminatory terms; lease compliant"],
   ];
   const next: Record<string, [LeadStatus, string] | null> = { verified: ["touring", "Mark toured"], touring: ["application", "Application received"], application: ["closed", "Close deal"], new: null, closed: null, cancelled: null };
+  const sendTourOffer = () => {
+    const options = tourTimes
+      .filter((slot) => slot.date && slot.date >= minTourDate && slot.time)
+      .map((slot) => formatTourOption(slot.date, slot.time));
+    if (!options.length) return;
+    sendTourOptions(lead.id, options);
+    setTourTimes([{ date: "", time: "" }, { date: "", time: "" }, { date: "", time: "" }]);
+  };
   return (
     <div className="absolute inset-0 z-30 bg-[#F5F7FA] flex flex-col rise">
       <div className="pt-14 px-5 pb-3 flex items-center gap-3 bg-[#F5F7FA]">
@@ -205,6 +232,35 @@ function LeadView({ lead, onBack, onContact }: { lead: Lead; onBack: () => void;
           <p className="mt-2 text-[11px] text-mute">The Agentic Assistant suggests, you verify. Nothing reaches the client until you confirm.</p>
         </section>
 
+        {lead.status === "verified" && (
+          <section className="rounded-3xl bg-white shadow-card p-4">
+            <div className="text-[13px] font-semibold">Offer tour times</div>
+            <p className="mt-1 text-[12px] text-mute">Send up to three options for the buyer to choose from, or decline.</p>
+            {lead.tourOptions?.length ? <p className="mt-2 rounded-2xl bg-[#F5F7FA] p-3 text-[12px]">Sent to buyer: {lead.tourOptions.join(" · ")}</p> : null}
+            {lead.tourDeclined && <p className="mt-2 text-[12px] text-mute">The buyer declined a tour for now.</p>}
+            <div className="mt-3 space-y-2">
+              {tourTimes.map((slot, i) => (
+                <div key={i} className="grid grid-cols-2 gap-2">
+                  <input aria-label={`Tour date option ${i + 1}`} type="date" min={minTourDate} value={slot.date}
+                    onChange={(e) => setTourTimes((current) => current.map((value, index) => index === i ? { ...value, date: e.target.value } : value))}
+                    className="h-10 min-w-0 w-full rounded-xl border border-[#E1E7EF] bg-white px-2 text-[13px] outline-none focus:border-coral" />
+                  <select aria-label={`Tour time option ${i + 1}`} value={slot.time}
+                    onChange={(e) => setTourTimes((current) => current.map((value, index) => index === i ? { ...value, time: e.target.value } : value))}
+                    className="h-10 min-w-0 w-full rounded-xl border border-[#E1E7EF] bg-white px-2 text-[13px] outline-none focus:border-coral">
+                    <option value="">Select a time</option>
+                    {TOUR_TIME_CHOICES.map((time) => {
+                      const [hour, minute] = time.split(":").map(Number);
+                      const label = new Intl.DateTimeFormat(undefined, { hour: "numeric", minute: "2-digit" }).format(new Date(2000, 0, 1, hour, minute));
+                      return <option key={time} value={time}>{label}</option>;
+                    })}
+                  </select>
+                </div>
+              ))}
+            </div>
+            <button disabled={!tourTimes.some((slot) => slot.date && slot.date >= minTourDate && slot.time)} onClick={sendTourOffer} className="mt-3 h-10 w-full rounded-full bg-navy text-[13px] font-semibold text-white disabled:opacity-40">Send times to buyer</button>
+          </section>
+        )}
+
         {lead.language && (
           <div className="rounded-2xl bg-[#EFECFB] text-[#6655CC] p-3 text-[12px] leading-snug flex gap-2"><Icon name="chat" className="w-4 h-4 shrink-0" /><span>Client speaks <b>{lead.language}</b>. You read and write in English — Pebble translates both ways.</span></div>
         )}
@@ -212,15 +268,16 @@ function LeadView({ lead, onBack, onContact }: { lead: Lead; onBack: () => void;
         {lead.status !== "new" && (
           <section className="rounded-3xl bg-white shadow-card p-4">
             <div className="text-[13px] font-semibold mb-2">Deal · {DEAL[dealTypeOf(lead)].label}</div>
+            {lead.tourSlot && <p className="mb-3 text-[13px] text-mute">Tour scheduled · {lead.tourSlot}</p>}
             <div className="flex gap-2">
               {next[lead.status] && <button onClick={() => setStatus(lead.id, next[lead.status]![0])} className="flex-1 h-10 rounded-full bg-navy text-white text-[13px] font-semibold">{next[lead.status]![1]}</button>}
-              {lead.status !== "closed" && <button onClick={() => setStatus(lead.id, "cancelled")} className="h-10 px-4 rounded-full border border-[#E1E7EF] text-[13px] font-medium text-mute flex items-center gap-1"><Icon name="archive" className="w-4 h-4" />Cancel</button>}
+              {lead.status !== "closed" && lead.status !== "cancelled" && <button onClick={() => setStatus(lead.id, "cancelled")} className="h-10 px-4 rounded-full border border-[#E1E7EF] text-[13px] font-medium text-mute flex items-center gap-1"><Icon name="archive" className="w-4 h-4" />Cancel</button>}
             </div>
           </section>
         )}
       </div>
       <div className="absolute bottom-0 left-0 right-0 px-5 pt-3 pb-8 bg-white border-t border-[#EDF2F9] flex gap-2.5">
-        <button disabled={lead.status === "new" && !allChecked} onClick={() => verifyLead(lead.id)} className={`flex-1 py-3.5 disabled:opacity-40 rounded-full font-semibold text-[15px] flex items-center justify-center gap-1.5 ${lead.status === "new" ? "bg-coral text-white" : "bg-[#EDF3FE] text-[#3478F0]"}`}>
+        <button disabled={(lead.status === "new" && !allChecked) || lead.status === "cancelled"} onClick={() => verifyLead(lead.id)} className={`flex-1 py-3.5 disabled:opacity-40 rounded-full font-semibold text-[15px] flex items-center justify-center gap-1.5 ${lead.status === "new" ? "bg-coral text-white" : "bg-[#EDF3FE] text-[#3478F0]"}`}>
           <Icon name="check" className="w-5 h-5" stroke={2.6} />{lead.status === "new" ? "Verify" : "Verified"}
         </button>
         <button onClick={onContact} className="flex-1 py-3.5 rounded-full bg-navy text-white font-semibold text-[15px] flex items-center justify-center gap-1.5"><Icon name="phone" className="w-5 h-5" />Contact client</button>

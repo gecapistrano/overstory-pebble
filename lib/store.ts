@@ -11,6 +11,8 @@ import { dealValue, leadRecap } from "./recap";
 import { getListing } from "./adapters";
 
 const KEY = "pebble.state.v3-costar";
+const LEGACY_LIVE_KEY = "pebble.live.v1";
+const SEEDED_LEAD_IDS = new Set(["ld-101", "ld-102", "ld-103", "ld-104", "ld-105", "ld-106", "ld-107", "ld-108", "ld-109"]);
 const H = 3600_000;
 
 export interface PebbleState {
@@ -26,56 +28,32 @@ export interface PebbleState {
 
 export const now = () => Date.now() + (read().clockOffset || 0);
 
-function seedLeads(): Lead[] {
-  const t = Date.now();
-  const mk = (p: Partial<Lead> & { id: string; clientName: string; status: LeadStatus; listing: string; agentId: string; ageH: number; idleH: number; summary: string; budget: string }): Lead => {
-    const l = getListing(p.listing)!;
-    return {
-      id: p.id,
-      clientName: p.clientName,
-      clientPhone: "(713) 555-01" + p.id.slice(-2),
-      createdAt: t - p.ageH * H,
-      transcript: [],
-      criteria: { vibes: [], neighborhoods: [] },
-      recap: { summary: p.summary, budget: p.budget, timeline: "Within 60 days", mustHaves: [], niceToHaves: [] },
-      suggestions: [p.listing],
-      chosenListingId: p.listing,
-      status: p.status,
-      checklist: { available: p.status !== "new", price: p.status !== "new", fits: p.status !== "new", legal: p.status !== "new" },
-      agentId: p.agentId,
-      messages: [],
-      lastClientActivity: t - p.idleH * H,
-      nudgesSent: p.nudgesSent || 0,
-      rescuedByNudge: p.rescuedByNudge || false,
-      dealValue: l ? dealValue(l) : 0,
-      events: [{ at: t - p.ageH * H, label: "Voice request received", actor: "client" }],
-      archived: p.status === "cancelled",
-    };
-  };
-  return [
-    // Mock CRM pipeline (demo) on real CoStar listings in Houston
-    mk({ id: "ld-101", clientName: "James Liu", status: "new", listing: "cs-a14510408-0", agentId: "maya", ageH: 0.4, idleH: 0.4, summary: "Incoming Rice PhD student. Wants a quiet studio in the Heights, short ride downtown, no car.", budget: "Up to $1,400/mo" }),
-    mk({ id: "ld-102", clientName: "Ana Morales", status: "verified", listing: "cs-a184655-2", agentId: "elena", ageH: 20, idleH: 5, summary: "Engineer relocating from Madrid to Downtown Houston. Bright 2-bed near the bayou trails.", budget: "Up to $1,900/mo" }),
-    mk({ id: "ld-103", clientName: "The Okonkwo family", status: "touring", listing: "cs-r233681209", agentId: "marcus", ageH: 70, idleH: 8, summary: "Family of four. 3-bed Heights bungalow with a yard, near Hogg Middle School.", budget: "Up to $450k" }),
-    mk({ id: "ld-104", clientName: "Dev Mehta", status: "touring", listing: "cs-a176459-2", agentId: "maya", ageH: 96, idleH: 50, summary: "New hire at an energy firm downtown. Loft-style 2-bed, loves light.", budget: "Up to $2,100/mo" }),
-    mk({ id: "ld-105", clientName: "Tom Becker", status: "application", listing: "cs-a815594-1", agentId: "daniel", ageH: 120, idleH: 10, summary: "Nurse at the Medical Center with a beagle. Pet-friendly 1-bed.", budget: "Up to $1,500/mo", nudgesSent: 1, rescuedByNudge: true }),
-    mk({ id: "ld-106", clientName: "Kofi Mensah", status: "verified", listing: "cs-r239719430", agentId: "marcus", ageH: 40, idleH: 12, summary: "First-time buyer. Modern townhouse within 15 minutes of downtown.", budget: "Up to $400k" }),
-    mk({ id: "ld-107", clientName: "Lena Fischer", status: "closed", listing: "cs-r237029003", agentId: "priya", ageH: 300, idleH: 100, summary: "Bought a light-filled condo on Heights Blvd.", budget: "Up to $380k", nudgesSent: 2, rescuedByNudge: true }),
-    mk({ id: "ld-108", clientName: "Mei Tanaka", status: "closed", listing: "cs-a294077-1", agentId: "priya", ageH: 150, idleH: 100, summary: "Signed a 12-month lease on a Heights 1-bed.", budget: "Up to $1,250/mo" }),
-    mk({ id: "ld-109", clientName: "Hannah Wright", status: "cancelled", listing: "cs-a451420-2", agentId: "daniel", ageH: 200, idleH: 150, summary: "Decided to stay in Dallas.", budget: "Up to $2,500/mo" }),
-  ];
-}
-
 function initial(): PebbleState {
-  return { leads: seedLeads(), approvedStrategies: [], dismissedStrategies: [], clockOffset: 0 };
+  return { leads: [], approvedStrategies: [], dismissedStrategies: [], clockOffset: 0 };
 }
 
 let mem: PebbleState | null = null;
+let clearedLegacyLive = false;
 function read(): PebbleState {
   if (typeof window === "undefined") return mem || (mem = initial());
+  if (!clearedLegacyLive) {
+    try { localStorage.removeItem(LEGACY_LIVE_KEY); } catch {}
+    clearedLegacyLive = true;
+  }
   try {
     const raw = localStorage.getItem(KEY);
-    if (raw) return (mem = JSON.parse(raw));
+    if (raw) {
+      const state = JSON.parse(raw) as PebbleState;
+      const storedLeads = Array.isArray(state.leads) ? state.leads : [];
+      const leads = storedLeads.filter((lead) => !SEEDED_LEAD_IDS.has(lead.id));
+      if (!Array.isArray(state.leads) || leads.length !== storedLeads.length) {
+        state.leads = leads;
+        write(state, false);
+      } else {
+        mem = state;
+      }
+      return state;
+    }
   } catch {}
   const s = initial();
   write(s, false);
@@ -137,6 +115,19 @@ function withLead(id: string, fn: (l: Lead) => void) {
     if (l) fn(l);
   });
 }
+function cancelLead(l: Lead, cancelledBy: "client" | "agent") {
+  if (l.status === "closed" || l.status === "cancelled") return;
+  l.status = "cancelled";
+  l.cancelledBy = cancelledBy;
+  l.archived = true;
+  l.tourSlot = undefined;
+  l.tourOptions = [];
+  l.tourDeclined = false;
+  if (cancelledBy === "client") l.lastClientActivity = now();
+  const message = cancelledBy === "client" ? "The customer cancelled this request." : "This request was cancelled by the agent.";
+  l.messages.push({ from: cancelledBy, text: message, at: now() });
+  ev(l, cancelledBy === "client" ? "Request cancelled by the customer" : "Deal cancelled · archived", cancelledBy);
+}
 
 // ---------- Customer actions ----------
 export function createLead(p: { dealType?: DealType; language?: string; clientName: string; transcript: string[]; criteria: Criteria; suggestions: Listing[]; chosen: Listing }): string {
@@ -186,8 +177,41 @@ export function bookTour(id: string, slot: string) {
   withLead(id, (l) => {
     l.status = "touring";
     l.tourSlot = slot;
+    l.tourDeclined = false;
     l.lastClientActivity = now();
+    l.messages.push({ from: "client", text: `Tour booked · ${slot}`, at: now() });
     ev(l, `Tour booked · ${slot}`, "client");
+  });
+}
+export function cancelTour(id: string) {
+  withLead(id, (l) => {
+    l.status = "verified";
+    l.tourSlot = undefined;
+    l.tourDeclined = false;
+    l.lastClientActivity = now();
+    l.messages.push({ from: "client", text: "Cancelled the scheduled tour", at: now() });
+    ev(l, "Client cancelled the scheduled tour", "client");
+  });
+}
+export function cancelRequest(id: string) {
+  withLead(id, (l) => cancelLead(l, "client"));
+}
+export function sendTourOptions(id: string, options: string[]) {
+  const clean = [...new Set(options.map((option) => option.trim()).filter(Boolean))];
+  if (!clean.length || clean.length > 3) throw new Error("Send between one and three tour times.");
+  withLead(id, (l) => {
+    l.tourOptions = clean;
+    l.tourDeclined = false;
+    l.messages.push({ from: "agent", text: `Available tour times: ${clean.join(" · ")}`, at: now() });
+    ev(l, `Tour times sent · ${clean.join(", ")}`, "agent");
+  });
+}
+export function declineTour(id: string) {
+  withLead(id, (l) => {
+    l.tourDeclined = true;
+    l.lastClientActivity = now();
+    l.messages.push({ from: "client", text: "No tour for now", at: now() });
+    ev(l, "Client declined the offered tour times", "client");
   });
 }
 export function submitApplication(id: string) {
@@ -226,9 +250,12 @@ export function sendNudge(id: string, text: string) {
 }
 export function setStatus(id: string, status: LeadStatus) {
   withLead(id, (l) => {
+    if (status === "cancelled") {
+      cancelLead(l, "agent");
+      return;
+    }
     l.status = status;
-    if (status === "cancelled") l.archived = true;
-    ev(l, status === "closed" ? "Deal closed" : status === "cancelled" ? "Deal cancelled · archived" : `Moved to ${status}`, "agent");
+    ev(l, status === "closed" ? "Deal closed" : `Moved to ${status}`, "agent");
   });
 }
 export function fastForward(hours: number) {
@@ -321,6 +348,19 @@ export function updateAccount(p: Partial<Pick<CustomerProfile, "name" | "age" | 
   if (!id) return;
   update((s) => { const a = s.profiles?.[id]; if (a) s.profiles![id] = { ...a, ...p, updatedAt: now() }; });
 }
+export function recordInterest(listingId: string) {
+  const id = sessionId();
+  if (!id) return;
+  update((s) => {
+    const account = s.profiles?.[id];
+    if (!account) return;
+    account.interestedHomes = [
+      ...(account.interestedHomes || []).filter((home) => home.listingId !== listingId),
+      { listingId, at: now() },
+    ];
+    account.updatedAt = now();
+  });
+}
 export function updateConsent(c: Partial<Pick<Consent, "activity" | "contact" | "shareWithOwners">>) {
   const id = sessionId();
   if (!id) return;
@@ -339,7 +379,7 @@ export function exportMyData(): string {
   const a = id ? s.profiles?.[id] : undefined;
   if (!id || !a) return "{}";
   const { passwordHash: _h, salt: _s, ...account } = a;
-  return JSON.stringify({ account, searches: (s.searches || []).filter((x) => x.customerId === id), views: (s.views || []).filter((x) => x.customerId === id), leads: s.leads.filter((l) => l.customerId === id) }, null, 2);
+  return JSON.stringify({ account, interestedHomes: a.interestedHomes || [], searches: (s.searches || []).filter((x) => x.customerId === id), views: (s.views || []).filter((x) => x.customerId === id), leads: s.leads.filter((l) => l.customerId === id) }, null, 2);
 }
 /** Deletes the account, its activity, and anonymizes its leads (right to erasure). */
 export function deleteAccount() {

@@ -24,7 +24,7 @@ On-screen source captions (bottom left, small, 3 seconds each):
 
 | Time | Step | On screen (`/demo/`) | Voiceover |
 | --- | --- | --- | --- |
-| 0:22 | Title | Pebble logo, "Say the house. Find your home." | Meet Pebble. AI suggests, a human verifies. |
+| 0:22 | Title | Pebble logo, "Describe the house. Find your home." | Meet Pebble. AI suggests, a human verifies. |
 | 0:26 | 1 · Listen | Homebuyer app: tap the mic. Sarah says: "I'm starting a job downtown. Two bedrooms, under two thousand a month, I have a dog, and I want lots of light, maybe near the Heights." | One tap, and Sarah just talks, rambling and all. Pebble keeps listening, picks out her budget, bedrooms, timing, her dog, and the feeling she's after, then answers in one sentence with three houses, each with a reason it fits. |
 | 0:42 | 2 · Refine | Sarah says "a bit cheaper, more artsy." The list updates, then she opens a house and its 3D tour | She doesn't start over. "A bit cheaper, more artsy" refines the same search, because vibe search has read every listing photo for style, materials and light. These are real CoStar listings in Houston and Los Angeles. |
 | 0:56 | 3 · Interested! | Sarah taps **Interested!** | She loves one, so she taps Interested. Only now does her request reach an agent. |
@@ -36,7 +36,7 @@ On-screen source captions (bottom left, small, 3 seconds each):
 | 1:51 | 9 · Home | Homebuyer app: "Lease signed. Welcome home." (or "It's yours! Keys are waiting." for a purchase) | And on Sarah's phone: Welcome home. A house just became a home. |
 | 1:59 | 10 · Dashboard | Brokerage dashboard: revenue, response time, deals rescued by follow-ups, forecast | And the brokerage sees all of it: revenue, response times, deals rescued by follow-ups, a forecast, and strategy ideas a manager approves. |
 | 2:12 | Language (optional cut-in) | Sarah's friend asks in Spanish; Pebble asks to switch in English and Spanish | Speak another language? Pebble notices, asks first, then switches. The agent still reads English. |
-| 2:22 | End card | "Pebble. Say the house. Find your home." · Houston · Los Angeles | Pebble. Say the house, find your home. AI suggests, a human verifies. |
+| 2:22 | End card | "Pebble. Describe the house. Find your home." · Houston · Los Angeles | Pebble. Describe the house, find your home. AI suggests, a human verifies. |
 
 ## References
 

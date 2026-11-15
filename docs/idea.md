@@ -1,6 +1,6 @@
 # Pebble — Product Idea & Features
 
-> **Say the house. Find your home.**
+> **Describe the house. Find your home.**
 > Pebble is your brokerage's AI concierge: it **listens to your clients, then briefs your agents.**
 > **AI suggests, a human verifies.**
 
@@ -145,7 +145,7 @@ The numbers:
 
 ## 7. Wording and brand rules
 
-- Name: **Pebble**. Tagline: **"Say the house. Find your home."**
+- Name: **Pebble**. Tagline: **"Describe the house. Find your home."**
 - Promise: **"AI suggests, a human verifies."** It's the brand, not a disclaimer.
 - **House** while searching → **home** only once it's theirs.
 - Describe Pebble to brokerages as "your brokerage's AI concierge: it listens to your clients, then briefs your agents." To clients: "a concierge that listens."
@@ -183,4 +183,4 @@ The numbers:
 7. Client goes quiet → follow-up agent investigates → agent taps Send → application → closed → "Welcome home."
 8. Montage: rent, buy, land, short stay.
 9. Dashboard: revenue, response time, deals rescued, forecast, AI strategy → manager approves.
-10. Close: "Houston and Los Angeles today, then the US, then global. Pebble. Say the house. Find your home. AI suggests, a human verifies."
+10. Close: "Houston and Los Angeles today, then the US, then global. Pebble. Describe the house. Find your home. AI suggests, a human verifies."

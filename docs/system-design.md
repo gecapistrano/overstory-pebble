@@ -1,6 +1,6 @@
 # Pebble — System Design
 
-> **Say the house. Find your home.**
+> **Describe the house. Find your home.**
 > Pebble is a brokerage's AI concierge: it listens to clients, then briefs agents.
 > Core promise, enforced in code: **AI suggests, a human verifies.**
 

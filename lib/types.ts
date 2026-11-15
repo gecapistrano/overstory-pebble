@@ -147,6 +147,9 @@ export interface Lead {
   dealType?: DealType; // buy / rent / lease (older leads: derived from the listing kind)
   sim?: { step: number }; // demo: the fast-forwarded closing conversation, step by step (lib/closing.ts)
   closedAt?: number;
+  tourOptions?: string[];
+  tourDeclined?: boolean;
+  cancelledBy?: "client" | "agent";
 }
 
 export interface Agent {
@@ -189,6 +192,7 @@ export interface CustomerProfile {
   passwordHash?: string; // salted SHA-256, never the password itself
   salt?: string;
   consent?: Consent;
+  interestedHomes?: { listingId: string; at: number }[];
 }
 /** What the customer agreed to. Only `terms` is required to have an account; everything else is opt-in. */
 export interface Consent {

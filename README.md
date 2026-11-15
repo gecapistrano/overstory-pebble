@@ -1,6 +1,6 @@
 # Pebble
 
-**Say the house. Find your home.**
+**Describe the house. Find your home.**
 
 Pebble is your brokerage's AI concierge: it **listens to your clients, then briefs your agents.** Clients describe the house they want in their own words and language; licensed agents verify, call, and close. Our promise on every screen: **AI suggests, a human verifies.**
 

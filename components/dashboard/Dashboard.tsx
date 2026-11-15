@@ -2,23 +2,22 @@
 /**
  * Brokerage dashboard, in three separate parts:
  *   Sales     - revenue, deals, first-reply time, follow-up saves, revenue + forecast, agents, the broker's-assistant
- *               strategies and the live activity feed
+ *               strategies and the recent activity feed
  *   Customers - what shoppers search for, where they look, who they are, the most likely buyers/renters, and a
  *               per-property view for owners
  *   Market    - CoStar market data and the Gemini market recap (both collapsible)
- * Everything is recomputed every 5 seconds from lib/brokerage.ts.
+ * App activity and CoStar market data are recomputed from lib/brokerage.ts.
  */
 import Link from "next/link";
 import { useEffect, useMemo, useRef, useState, type ReactNode } from "react";
 import { Area, Bar, CartesianGrid, ComposedChart, Line, ResponsiveContainer, Tooltip, XAxis, YAxis } from "recharts";
 import { aiStrategy } from "@/lib/ai";
-import { CITIES, change, factsOf, fmtDur, fmtMoney, snapshot, tickLive, type Fact, type PropertyStats, type Shopper, type Snapshot } from "@/lib/brokerage";
+import { CITIES, change, factsOf, fmtDur, fmtMoney, snapshot, type Fact, type PropertyStats, type Shopper, type Snapshot } from "@/lib/brokerage";
 import { localStrategies, type Strategy } from "@/lib/strategy";
 import { getState, now, update, useStore } from "@/lib/store";
 import { Avatar, Icon, Logo } from "@/components/ui";
 import { CostarMarket, MarketRecap } from "@/components/dashboard/MarketIntel";
 
-const TICK = 5000;
 const SECTIONS = [["sales", "Sales"], ["customers", "Customers"], ["market", "Market"]] as const;
 const ago = (t: number, at: number) => {
   const s = Math.max(0, Math.round((at - t) / 1000));
@@ -27,20 +26,15 @@ const ago = (t: number, at: number) => {
 
 export default function Dashboard() {
   const [city, setCity] = useState<string>(CITIES[0]);
-  const [beat, setBeat] = useState(0);
   const leads = useStore((s) => s.leads);
   const views = useStore((s) => s.views?.length || 0);
   const searches = useStore((s) => s.searches?.length || 0);
+  const profiles = useStore((s) => s.profiles);
+  const clockOffset = useStore((s) => s.clockOffset);
   const approved = useStore((s) => s.approvedStrategies);
   const dismissed = useStore((s) => s.dismissedStrategies);
 
-  // every 5 seconds: advance the live layer and recompute everything
-  useEffect(() => {
-    tickLive(now());
-    const id = window.setInterval(() => { tickLive(now()); setBeat((b) => b + 1); }, TICK);
-    return () => window.clearInterval(id);
-  }, []);
-  const snap = useMemo(() => snapshot(getState(), city, now()), [city, beat, leads, views, searches]);
+  const snap = useMemo(() => snapshot(getState(), city, now()), [city, clockOffset, leads, views, searches, profiles]);
 
   // which section is in view, for the highlighted tab
   const [active, setActive] = useState<string>(SECTIONS[0][0]);
@@ -71,6 +65,15 @@ export default function Dashboard() {
               <button key={c} onClick={() => setCity(c)} aria-pressed={city === c} className={`border-b-2 px-3 text-[13px] font-medium ${city === c ? "border-[#5FA8FF] text-white" : "border-transparent text-white/60 hover:text-white"}`}>{c}</button>
             ))}
           </nav>
+          {/* section picker, right side of the bar (md and up; phones keep the strip below the header) */}
+          <nav className="ml-auto hidden md:flex items-center" aria-label="Sections">
+            <div className="flex items-center gap-1 rounded-full bg-white/10 p-1">
+              {SECTIONS.map(([id, label]) => (
+                <a key={id} href={`#${id}`} onClick={() => setActive(id)} aria-current={active === id ? "location" : undefined}
+                  className={`rounded-full px-4 py-1.5 text-[13px] font-medium transition-colors ${active === id ? "bg-white text-navy" : "text-white/70 hover:text-white"}`}>{label}</a>
+              ))}
+            </div>
+          </nav>
         </div>
       </div>
       <header className="mx-auto max-w-[1400px] px-4 md:px-8 pt-8 pb-4">
@@ -81,7 +84,7 @@ export default function Dashboard() {
         </p>
       </header>
 
-      <nav className="sticky top-0 z-30 bg-canvas/90 backdrop-blur border-b border-line">
+      <nav className="md:hidden sticky top-0 z-30 bg-canvas/90 backdrop-blur border-b border-line">
         <div className="mx-auto max-w-[1400px] px-4 md:px-8 flex gap-6 text-sm">
           {SECTIONS.map(([id, label]) => (
             <a key={id} href={`#${id}`} onClick={() => setActive(id)} aria-current={active === id ? "location" : undefined}
