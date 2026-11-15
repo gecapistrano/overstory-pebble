@@ -255,7 +255,7 @@ export function nudgeFor(l: Lead): { text: string; draft: string } | null {
 }
 
 // ---------- Customer accounts + activity (homebuyer app → brokerage dashboard) ----------
-// Demo: accounts live in this browser's store with salted, hashed passwords. Production: an auth provider and a
+// Demo: accounts live in this browser's store with no real authentication (any input works). Production: an auth provider and a
 // database (see the pebble-production-data note). Activity is only recorded for signed-in customers who opted in.
 export const PRIVACY_VERSION = "2026-11-15";
 const SESSION = "pebble.session";
@@ -282,36 +282,33 @@ export function customerId(): string {
   return sessionId() || "guest";
 }
 
-async function hashPassword(password: string, salt: string) {
-  const data = new TextEncoder().encode(`${salt}:${password}`);
-  const buf = await crypto.subtle.digest("SHA-256", data);
-  return [...new Uint8Array(buf)].map((b) => b.toString(16).padStart(2, "0")).join("");
-}
+// Demo accounts: no real authentication. Any input works; blank fields fall back to a demo profile.
+const DEMO = { name: "Sarah Kim", email: "sarah.kim@example.com", age: 29, location: "Austin, TX", phone: "(713) 555-0142" };
 const normEmail = (e: string) => e.trim().toLowerCase();
 const findByEmail = (email: string) => Object.values(read().profiles || {}).find((p) => p.email && normEmail(p.email) === normEmail(email));
+const startSession = (id: string) => {
+  try { localStorage.setItem(SESSION, id); } catch {}
+  update(() => undefined); // let every screen pick up the new session
+};
 
-export async function signUp(p: { name: string; email: string; password: string; age?: number; location?: string; phone?: string; consent: Omit<Consent, "version" | "updatedAt" | "terms"> & { terms: boolean } }): Promise<{ ok: true } | { ok: false; error: string }> {
-  if (!p.consent.terms) return { ok: false, error: "Please accept the Terms and Privacy Notice to create an account." };
-  if (findByEmail(p.email)) return { ok: false, error: "That email already has an account. Log in instead." };
-  if (p.password.length < 8) return { ok: false, error: "Use at least 8 characters for your password." };
+export async function signUp(p: { name?: string; email?: string; password?: string; age?: number; location?: string; phone?: string; consent: Omit<Consent, "version" | "updatedAt" | "terms"> & { terms: boolean } }): Promise<{ ok: true }> {
+  const email = normEmail(p.email || "") || DEMO.email;
+  const existing = findByEmail(email);
+  if (existing) { startSession(existing.id); return { ok: true }; }
   const id = `cu-${Math.random().toString(36).slice(2, 10)}`;
-  const salt = Math.random().toString(36).slice(2) + Date.now().toString(36);
-  const passwordHash = await hashPassword(p.password, salt);
   const t = now();
   const consent: Consent = { version: PRIVACY_VERSION, terms: t, activity: p.consent.activity, contact: p.consent.contact, shareWithOwners: p.consent.shareWithOwners, updatedAt: t };
   update((s) => {
-    s.profiles = { ...(s.profiles || {}), [id]: { id, name: p.name.trim(), email: normEmail(p.email), age: p.age, location: p.location?.trim(), phone: p.phone?.trim(), passwordHash, salt, consent, createdAt: t, updatedAt: t } };
+    s.profiles = { ...(s.profiles || {}), [id]: { id, name: p.name?.trim() || DEMO.name, email, age: p.age ?? (p.name?.trim() ? undefined : DEMO.age), location: p.location?.trim() || (p.name?.trim() ? undefined : DEMO.location), phone: p.phone?.trim() || DEMO.phone, consent, createdAt: t, updatedAt: t } };
   });
-  try { localStorage.setItem(SESSION, id); } catch {}
-  update(() => undefined); // let every screen pick up the new session
+  startSession(id);
   return { ok: true };
 }
-export async function logIn(email: string, password: string): Promise<{ ok: true } | { ok: false; error: string }> {
-  const acc = findByEmail(email);
-  if (!acc?.salt || !acc.passwordHash || (await hashPassword(password, acc.salt)) !== acc.passwordHash) return { ok: false, error: "That email and password don't match." };
-  try { localStorage.setItem(SESSION, acc.id); } catch {}
-  update(() => undefined);
-  return { ok: true };
+/** Demo log-in: signs into the account with that email, or into a demo account if there is none. */
+export async function logIn(email: string, _password?: string): Promise<{ ok: true }> {
+  const acc = findByEmail(email || DEMO.email);
+  if (acc) { startSession(acc.id); return { ok: true }; }
+  return signUp({ email: email || DEMO.email, consent: { terms: true, activity: true, contact: true, shareWithOwners: false } });
 }
 export function logOut() {
   try { localStorage.removeItem(SESSION); } catch {}

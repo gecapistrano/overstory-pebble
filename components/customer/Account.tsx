@@ -45,7 +45,7 @@ export function AuthFlow({ start = "welcome", reason, onDone, onClose }: { start
   const [mode, setMode] = useState<AuthMode | "consent" | "privacy">(start);
   const [back, setBack] = useState<AuthMode | "consent">("welcome");
   const [d, setD] = useState({ name: "", email: "", password: "", age: "", location: "", phone: "" });
-  const [c, setC] = useState({ terms: false, activity: true, contact: true, shareWithOwners: false });
+  const [c, setC] = useState({ terms: true, activity: true, contact: true, shareWithOwners: false });
   const [err, setErr] = useState("");
   const [busy, setBusy] = useState(false);
   const set = (k: keyof typeof d) => (e: React.ChangeEvent<HTMLInputElement>) => setD({ ...d, [k]: e.target.value });
@@ -71,17 +71,17 @@ export function AuthFlow({ start = "welcome", reason, onDone, onClose }: { start
   if (mode === "login") {
     const go = async () => {
       setBusy(true); setErr("");
-      const r = await logIn(d.email, d.password);
+      await logIn(d.email, d.password);
       setBusy(false);
-      if (r.ok) onDone(); else setErr(r.error);
+      onDone();
     };
     return (
       <Screen title="Welcome back" sub={reason} onBack={() => (start === "login" ? onClose() : setMode("welcome"))}>
         <form className="space-y-2.5" onSubmit={(e) => { e.preventDefault(); void go(); }}>
-          <input aria-label="Email" type="email" autoComplete="email" value={d.email} onChange={set("email")} placeholder="Email" className={field} />
+          <input aria-label="Email" type="text" inputMode="email" autoComplete="email" value={d.email} onChange={set("email")} placeholder="Email" className={field} />
           <input aria-label="Password" type="password" autoComplete="current-password" value={d.password} onChange={set("password")} placeholder="Password" className={field} />
           {err && <p className="text-sm text-clay pt-1">{err}</p>}
-          <button disabled={busy || !d.email || !d.password} className="mt-3 w-full h-14 rounded-full bg-clay text-white text-[17px] disabled:opacity-50">{busy ? "One moment…" : "Log in"}</button>
+          <button disabled={busy} className="mt-3 w-full h-14 rounded-full bg-clay text-white text-[17px] disabled:opacity-50">{busy ? "One moment…" : "Log in"}</button>
         </form>
         <p className="mt-6 text-center text-sm text-stone">New here? <button onClick={() => setMode("signup")} className="text-sage">Create an account</button></p>
       </Screen>
@@ -89,20 +89,19 @@ export function AuthFlow({ start = "welcome", reason, onDone, onClose }: { start
   }
 
   if (mode === "signup") {
-    const ok = d.name.trim() && /\S+@\S+\.\S+/.test(d.email) && d.password.length >= 8;
     return (
       <Screen title="Create your account" sub={reason || "So your agent knows who they're helping."} onBack={() => (start === "signup" ? onClose() : setMode("welcome"))}>
-        <form className="space-y-2.5" onSubmit={(e) => { e.preventDefault(); if (ok) { setErr(""); setMode("consent"); } }}>
+        <form className="space-y-2.5" onSubmit={(e) => { e.preventDefault(); setErr(""); setMode("consent"); }}>
           <input aria-label="Full name" autoComplete="name" value={d.name} onChange={set("name")} placeholder="Full name" className={field} />
-          <input aria-label="Email" type="email" autoComplete="email" value={d.email} onChange={set("email")} placeholder="Email" className={field} />
-          <input aria-label="Password" type="password" autoComplete="new-password" value={d.password} onChange={set("password")} placeholder="Password (8+ characters)" className={field} />
+          <input aria-label="Email" type="text" inputMode="email" autoComplete="email" value={d.email} onChange={set("email")} placeholder="Email" className={field} />
+          <input aria-label="Password" type="password" autoComplete="new-password" value={d.password} onChange={set("password")} placeholder="Password" className={field} />
           <div className="flex gap-2.5">
             <input aria-label="Age" inputMode="numeric" value={d.age} onChange={(e) => setD({ ...d, age: e.target.value.replace(/\D/g, "").slice(0, 3) })} placeholder="Age" className={`${field} w-24 shrink-0`} />
             <input aria-label="Where you live now" autoComplete="address-level2" value={d.location} onChange={set("location")} placeholder="Where you live now" className={field} />
           </div>
           <input aria-label="Phone (optional)" type="tel" autoComplete="tel" value={d.phone} onChange={set("phone")} placeholder="Phone (optional)" className={field} />
           <p className="text-[12px] text-stone px-1">Age and location are optional. They help us suggest the right areas.</p>
-          <button disabled={!ok} className="mt-3 w-full h-14 rounded-full bg-clay text-white text-[17px] disabled:opacity-50">Continue</button>
+          <button className="mt-3 w-full h-14 rounded-full bg-clay text-white text-[17px]">Continue</button>
         </form>
         <p className="mt-6 text-center text-sm text-stone">Already have an account? <button onClick={() => setMode("login")} className="text-sage">Log in</button></p>
       </Screen>
@@ -112,14 +111,14 @@ export function AuthFlow({ start = "welcome", reason, onDone, onClose }: { start
   // consent
   const create = async () => {
     setBusy(true); setErr("");
-    const r = await signUp({ name: d.name, email: d.email, password: d.password, age: Number(d.age) || undefined, location: d.location, phone: d.phone, consent: c });
+    await signUp({ name: d.name, email: d.email, password: d.password, age: Number(d.age) || undefined, location: d.location, phone: d.phone, consent: c });
     setBusy(false);
-    if (r.ok) onDone(); else setErr(r.error);
+    onDone();
   };
   return (
     <Screen title="Your privacy" sub="You choose what we keep and who sees it. You can change this any time in your profile." onBack={() => setMode("signup")}>
       <div className="space-y-2.5">
-        <Toggle required on={c.terms} onChange={(v) => setC({ ...c, terms: v })} title="I agree to the Terms and Privacy Notice"
+        <Toggle on={c.terms} onChange={(v) => setC({ ...c, terms: v })} title="I agree to the Terms and Privacy Notice"
           body={<>We use your details to run your account and match you with homes. <span role="link" tabIndex={0} onClick={(e) => { e.stopPropagation(); privacy("consent"); }} className="text-sage underline">Read the Privacy Notice</span></>} />
         <Toggle on={c.activity} onChange={(v) => setC({ ...c, activity: v })} title="Save my searches and the homes I look at"
           body="Gives you better matches. The brokerage also sees this in its insights, like which tags and areas are popular." />
@@ -129,7 +128,7 @@ export function AuthFlow({ start = "welcome", reason, onDone, onClose }: { start
           body="Your name, age and email, so an owner can reach out about a home you've viewed a lot. Off by default." />
       </div>
       {err && <p className="mt-3 text-sm text-clay">{err}</p>}
-      <button onClick={() => void create()} disabled={!c.terms || busy} className="mt-5 w-full h-14 rounded-full bg-clay text-white text-[17px] disabled:opacity-50">{busy ? "Creating…" : "Create account"}</button>
+      <button onClick={() => void create()} disabled={busy} className="mt-5 w-full h-14 rounded-full bg-clay text-white text-[17px] disabled:opacity-50">{busy ? "Creating…" : "Create account"}</button>
       <p className="mt-3 text-center text-[12px] text-stone">Privacy Notice version {PRIVACY_VERSION}</p>
     </Screen>
   );
