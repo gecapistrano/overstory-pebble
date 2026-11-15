@@ -9,7 +9,7 @@ import { spokenRecap, price, commute, bedsBaths, vibeTag, agentById } from "@/li
 import { listen, speak, canListen, blobToDataUrl, type MicProblem } from "@/lib/speech";
 import { detectLanguage, toEnglish, t, switchPrompt, recapIn, speechLang, LANG_NAME, EN, hasDict, registerLanguage, type Lang } from "@/lib/i18n";
 import { aiParse, aiRecap, aiTranslate, aiTranscribe } from "@/lib/ai";
-import { bookTour, createLead, recordSearch, recordView, setLeadRecap, submitApplication, updateAccount, updateConsent, useAccount, useStore } from "@/lib/store";
+import { bookTour, cancelRequest, cancelTour, createLead, declineTour, recordInterest, recordSearch, recordView, setLeadRecap, submitApplication, updateAccount, updateConsent, useAccount, useStore } from "@/lib/store";
 import { AuthFlow, ProfileScreen, type AuthMode } from "@/components/customer/Account";
 import type { CustomerProfile } from "@/lib/types";
 import HomeArt from "@/components/HomeArt";
@@ -24,6 +24,20 @@ import { useWide, DeskBar } from "@/components/customer/Desk";
 import Mascot, { type MascotState } from "@/components/Mascot";
 
 type View = "home" | "listening" | "thinking" | "results" | "detail" | "tour" | "status";
+type SavedSearch = {
+  criteria: Criteria;
+  results: Listing[];
+  reply: string;
+  replyEn: string;
+  replyNative: { lang: Lang; text: string };
+  transcript: string[];
+  why: Record<string, { en: string; native: string }>;
+  active: number;
+  showMap: boolean;
+  photoOnly: boolean;
+  request: string;
+};
+type InterestedHome = { listing: Listing; lead: Lead | undefined; at: number };
 
 const LangCtx = createContext<Lang>("en");
 const useT = () => { const l = useContext(LangCtx); return (k: string) => t(l, k); };
@@ -32,21 +46,27 @@ const SAMPLE = "I'm starting a job in downtown Houston in January, looking for a
 
 export default function CustomerApp() {
   const [view, setView] = useState<View>("home");
+  const [homeTab, setHomeTab] = useState<"search" | "interested">("search");
   const [layer, setLayer] = useState<BaseLayer>("map");
   const wide = useWide(); // laptop / desktop: the OverStory desk (navy bar, map, frosted panel)
   const [partial, setPartial] = useState("");
   const [level, setLevel] = useState(0);
   const [criteria, setCriteria] = useState<Criteria>(emptyCriteria());
   const [results, setResults] = useState<Listing[]>([]);
+  const [savedSearch, setSavedSearch] = useState<SavedSearch | null>(null);
   const [reply, setReply] = useState("");
   const [replyKey, setReplyKey] = useState(0);
   const [transcript, setTranscript] = useState<string[]>([]);
   const [showMap, setShowMap] = useState(false);
   const [active, setActive] = useState(0);
   const [detail, setDetail] = useState<Listing | null>(null);
+  const [detailFrom, setDetailFrom] = useState<"results" | "interested">("results");
+  const [statusFrom, setStatusFrom] = useState<"results" | "interested">("results");
   const [tourFrom, setTourFrom] = useState<"detail" | "results">("detail");
   const [sheet, setSheet] = useState(false);
   const account = useAccount();
+  const allLeads = useStore((s) => s.leads);
+  const [pendingInterest, setPendingInterest] = useState<string | null>(null);
   const [auth, setAuth] = useState<{ start: AuthMode; reason?: string; then?: "sheet" } | null>(null);
   const [profileOpen, setProfileOpen] = useState(false);
   // first visit: offer an account (they can still look around first)
@@ -58,8 +78,21 @@ export default function CustomerApp() {
   }, []);
   /** "Interested" needs an account, so the agent knows who to call. */
   const interested = () => {
-    if (account) setSheet(true);
-    else setAuth({ start: "welcome", reason: "Create an account so a licensed Real Estate Agent can reach you about this home.", then: "sheet" });
+    if (!detail) return;
+    if (account) {
+      const currentRequest = allLeads.find((item) => item.customerId === account.id && item.chosenListingId === detail.id && item.status !== "cancelled");
+      if (currentRequest) {
+        setLeadId(currentRequest.id);
+        setStatusFrom(detailFrom);
+        setView("status");
+        return;
+      }
+      recordInterest(detail.id);
+      setSheet(true);
+    } else {
+      setPendingInterest(detail.id);
+      setAuth({ start: "welcome", reason: "Create an account so a licensed Real Estate Agent can reach you about this home.", then: "sheet" });
+    }
   };
   const [leadId, setLeadId] = useState<string | null>(null);
   const [typeMode, setTypeMode] = useState(false);
@@ -158,6 +191,19 @@ export default function CustomerApp() {
     const recap = langRef.current === "en" ? english : langRef.current === spoken ? native : recapIn(langRef.current, c, english);
     const shown = photoNote ? `${photoNote} ${recap}` : recap;
     setReply(shown);
+    setSavedSearch({
+      criteria: c,
+      results: top,
+      reply: shown,
+      replyEn: english,
+      replyNative: { lang: spoken, text: native },
+      transcript: [...transcriptRef.current, text || "(photo)"],
+      why: ai && ai.picks?.length ? Object.fromEntries(ai.picks.map((p) => [p.id, { en: p.why, native: p.whyNative || p.why }])) : {},
+      active: 0,
+      showMap: false,
+      photoOnly: false,
+      request: text.trim() || t(langRef.current, "photoSearch"),
+    });
     setReplyKey((k) => k + 1);
     setActive(0);
     setTranscript((t) => [...t, text || "(photo)"]);
@@ -213,8 +259,36 @@ export default function CustomerApp() {
     }, msPerWord);
   }, [process]);
 
-  const allLeads = useStore((s) => s.leads);
   const lead = leadId ? allLeads.find((l) => l.id === leadId) : undefined;
+  const interestByListing = new Map<string, number>((account?.interestedHomes || []).map((home): [string, number] => [home.listingId, home.at]));
+  for (const item of allLeads) {
+    if (account && item.customerId === account.id) interestByListing.set(item.chosenListingId, Math.max(interestByListing.get(item.chosenListingId) || 0, item.createdAt));
+  }
+  const interestedHomes: InterestedHome[] = Array.from(interestByListing, ([listingId, at]) => {
+    const listing = getListing(listingId);
+    if (!listing) return null;
+    return {
+      listing,
+      lead: account
+        ? allLeads.find((item) => item.customerId === account.id && item.chosenListingId === listingId && item.status !== "cancelled")
+          || allLeads.find((item) => item.customerId === account.id && item.chosenListingId === listingId)
+        : undefined,
+      at,
+    };
+  })
+    .filter((home): home is InterestedHome => home !== null)
+    .sort((a, b) => b.at - a.at);
+  const activeInterestedHomes = interestedHomes.filter(({ lead: item }) => item?.status !== "cancelled");
+  const cancelledInterestedHomes: InterestedHome[] = account
+    ? allLeads
+        .reduce<InterestedHome[]>((homes, item) => {
+          if (item.customerId !== account.id || item.status !== "cancelled") return homes;
+          const listing = getListing(item.chosenListingId);
+          if (listing) homes.push({ listing, lead: item, at: item.createdAt });
+          return homes;
+        }, [])
+        .sort((a, b) => b.at - a.at)
+    : [];
 
   // demo API for scripted recordings: window.pebble.*
   useEffect(() => {
@@ -222,10 +296,10 @@ export default function CustomerApp() {
     w.pebble = {
       say: (t: string, ms?: number) => simulate(t, ms),
       lang: (l: Lang) => switchLang(l),
-      reset: () => { setCriteria(emptyCriteria()); setResults([]); setTranscript([]); setView("home"); },
+      reset: () => { setCriteria(emptyCriteria()); setResults([]); setTranscript([]); setSavedSearch(null); setReply(""); setReplyEn(""); setWhy({}); setView("home"); },
       run: (t: string) => process(t),
-      open: (i: number) => { setDetail(results[i] || topThree(listingsSync(), critRef.current)[i]); setView("detail"); },
-      openId: (id: string) => { setDetail(getListing(id) || null); setView("detail"); },
+      open: (i: number) => { setDetail(results[i] || topThree(listingsSync(), critRef.current)[i]); setDetailFrom("results"); setView("detail"); },
+      openId: (id: string) => { setDetail(getListing(id) || null); setDetailFrom("results"); setView("detail"); },
       tour: () => setView("tour"),
       talk: () => interested(),
       send: () => sendLead(),
@@ -262,6 +336,7 @@ export default function CustomerApp() {
     if (!chosen || !account) return;
     const id = createLead({ language: lang === "en" ? (replyNative.lang !== "en" ? LANG_NAME[replyNative.lang]?.en : undefined) : LANG_NAME[lang]?.en || lang, clientName: account.name || "Pebble customer", transcript: transcriptRef.current, criteria: critRef.current, suggestions: results, chosen });
     setLeadId(id);
+    setStatusFrom("results");
     setSheet(false);
     setView("status");
     // Gemini writes the agent's recap in English from the client's own words
@@ -274,14 +349,61 @@ export default function CustomerApp() {
     process(text, f);
   };
 
+  const goHome = () => {
+    if (!photoOnly && (results.length || transcript.length)) {
+      setSavedSearch((previous) => previous ? { ...previous, criteria, results, reply, replyEn, replyNative, transcript, why, active, showMap } : previous);
+    }
+    setView("home");
+    setHomeTab("search");
+    setCriteria(emptyCriteria());
+    critRef.current = emptyCriteria();
+    setResults([]);
+    setReply("");
+    setReplyEn("");
+    setReplyNative({ lang: "en", text: "" });
+    setTranscript([]);
+    transcriptRef.current = [];
+    setWhy({});
+    setActive(0);
+    setShowMap(false);
+    setDetail(null);
+    setPhotoOnly(false);
+    setPartial("");
+  };
+  const resumeSearch = () => {
+    if (!savedSearch) return;
+    setCriteria(savedSearch.criteria);
+    setResults(savedSearch.results);
+    setReply(savedSearch.reply);
+    setReplyEn(savedSearch.replyEn);
+    setReplyNative(savedSearch.replyNative);
+    setTranscript(savedSearch.transcript);
+    setWhy(savedSearch.why);
+    setActive(savedSearch.active);
+    setShowMap(savedSearch.showMap);
+    setPhotoOnly(savedSearch.photoOnly);
+    setDetail(null);
+    setView("results");
+    setReplyKey((k) => k + 1);
+  };
+  const navigateHomeTab = (tab: "search" | "interested") => {
+    if (view !== "home") goHome();
+    setHomeTab(tab);
+  };
+
   return (
     <LangCtx.Provider value={lang}>
     <div className="flex h-full w-full flex-col bg-canvas text-ink overflow-hidden" dir={lang === "ar" ? "rtl" : "ltr"} lang={lang}>
       {wide && (
         <DeskBar
-          onLogo={() => setView("home")}
+          onLogo={goHome}
           account={account ? { initials: (account.name || "?").split(" ").map((w) => w[0]).slice(0, 2).join(""), name: account.name || "" } : null}
           onAccount={() => (account ? setProfileOpen(true) : setAuth({ start: "login" }))}
+          tab={homeTab}
+          onTab={navigateHomeTab}
+          searchLabel={t(lang, "searchTab")}
+          interestedLabel={t(lang, "interestedTab")}
+          interestCount={activeInterestedHomes.length}
         />
       )}
       <div className="relative min-h-0 flex-1 overflow-hidden">
@@ -291,7 +413,7 @@ export default function CustomerApp() {
           layer={layer}
           listings={results}
           selected={view === "detail" && detail ? detail.id : results[active]?.id}
-          onSelect={(id) => { const i = results.findIndex((r) => r.id === id); if (i >= 0) { setActive(i); if (view === "detail") setDetail(results[i]); } else { setDetail(getListing(id) || null); setView("detail"); } }}
+          onSelect={(id) => { const i = results.findIndex((r) => r.id === id); if (i >= 0) { setActive(i); if (view === "detail") setDetail(results[i]); } else { setDetail(getListing(id) || null); setDetailFrom("results"); setView("detail"); } }}
           className="absolute inset-0 z-0"
         />
       )}
@@ -308,7 +430,22 @@ export default function CustomerApp() {
         style={wide ? ({ "--notch": "1.25rem" } as React.CSSProperties) : undefined}
       >
       <div className="relative h-full w-full">
-      {view === "home" && <Home wide={wide} onMic={startListening} onSubmit={(t) => { setPartial(t); process(t); }} onPhoto={(f) => onPhoto(f)} />}
+      {view === "home" && <Home
+        wide={wide}
+        tab={homeTab}
+        onTab={setHomeTab}
+        account={account}
+        onAccount={() => (account ? setProfileOpen(true) : setAuth({ start: "login" }))}
+        interestedHomes={activeInterestedHomes}
+        cancelledHomes={cancelledInterestedHomes}
+        onOpenInterest={(l) => { setDetail(l); setDetailFrom("interested"); setView("detail"); }}
+        onOpenProgress={(l) => { setLeadId(l.id); setStatusFrom("interested"); setView("status"); }}
+        resumeText={savedSearch?.request}
+        onResume={resumeSearch}
+        onMic={startListening}
+        onSubmit={(t) => { setPartial(t); process(t); }}
+        onPhoto={(f) => onPhoto(f)}
+      />}
       {view === "listening" && (
         <Listening
           partial={partial}
@@ -335,16 +472,16 @@ export default function CustomerApp() {
           setShowMap={setShowMap}
           active={active}
           setActive={setActive}
-          onHome={() => setView("home")}
-          onOpen={(l) => { setDetail(l); setView("detail"); }}
-          onTour={(l) => { setDetail(l); setTourFrom("results"); setView("tour"); }}
+          onHome={goHome}
+          onOpen={(l) => { setDetail(l); setDetailFrom("results"); setView("detail"); }}
+          onTour={(l) => { setDetail(l); setDetailFrom("results"); setTourFrom("results"); setView("tour"); }}
           onChip={(c) => process(c)}
           onMic={startListening}
           onPhoto={(f) => onPhoto(f)}
           onSend={(text) => process(text)}
         />
       )}
-      {view === "detail" && detail && <Detail l={detail} criteria={criteria} why={why[detail.id] ? (lang === "en" ? why[detail.id].en : why[detail.id].native) : ""} onBack={() => setView("results")} onTour={() => { setTourFrom("detail"); setView("tour"); }} onTalk={interested} />}
+      {view === "detail" && detail && <Detail l={detail} criteria={criteria} why={why[detail.id] ? (lang === "en" ? why[detail.id].en : why[detail.id].native) : ""} onBack={() => setView(detailFrom === "interested" ? "home" : "results")} onTour={() => { setTourFrom("detail"); setView("tour"); }} onTalk={interested} />}
       {view === "tour" && detail && (
         <div className="absolute inset-0 bg-sand">
           {detail.matterportId ? <MatterportTour modelId={detail.matterportId} title={detail.title} className="absolute inset-0" /> : <Tour3D listing={detail} className="absolute inset-0" />}
@@ -357,19 +494,13 @@ export default function CustomerApp() {
           </div>
         </div>
       )}
-      {view === "status" && lead && <Status lead={lead} onBack={() => setView("results")} />}
+      {view === "status" && lead && <Status lead={lead} onBack={() => setView(statusFrom === "interested" ? "home" : "results")} />}
       {sheet && detail && account && <ShareSheet l={detail} account={account} onClose={() => setSheet(false)} onSend={sendLead} />}
-      {!wide && view === "home" && !auth && !profileOpen && (
-        <button onClick={() => (account ? setProfileOpen(true) : setAuth({ start: "login" }))} aria-label={account ? "Your profile" : "Log in"}
-          className="absolute top-[calc(var(--notch,3.5rem)-0.5rem)] right-4 z-30 h-9 min-w-9 px-3 rounded-full bg-card/95 text-ink shadow-card text-sm flex items-center justify-center gap-1.5">
-          {account ? <span className="w-6 h-6 -mx-1.5 rounded-full bg-sage text-white text-[11px] grid place-items-center">{(account.name || "?").split(" ").map((w) => w[0]).slice(0, 2).join("")}</span> : "Log in"}
-        </button>
-      )}
       {profileOpen && account && <ProfileScreen account={account} onBack={() => setProfileOpen(false)} />}
       {auth && (
         <AuthFlow start={auth.start} reason={auth.reason}
-          onClose={() => { try { localStorage.setItem("pebble.welcome.seen", "1"); } catch {} setAuth(null); }}
-          onDone={() => { try { localStorage.setItem("pebble.welcome.seen", "1"); } catch {} const next = auth.then; setAuth(null); if (next === "sheet") setSheet(true); }} />
+          onClose={() => { try { localStorage.setItem("pebble.welcome.seen", "1"); } catch {} setAuth(null); setPendingInterest(null); }}
+          onDone={() => { try { localStorage.setItem("pebble.welcome.seen", "1"); } catch {} const next = auth.then; setAuth(null); if (next === "sheet") { if (pendingInterest) recordInterest(pendingInterest); setPendingInterest(null); setSheet(true); } }} />
       )}
       {askLang && view === "results" && (
         <LangPrompt lang={askLang} onYes={() => switchLang(askLang)} onNo={() => { declined.current.add(askLang); setAskLang(null); }} />
@@ -399,11 +530,27 @@ function PhotoPicker({ onPick, className, children, label }: { onPick: (f: File)
 }
 
 /** Opening screen: one big way in (talk), two small ones (photo, type). Nothing else to read. */
-function Home({ wide, onMic, onSubmit, onPhoto }: { wide: boolean; onMic: () => void; onSubmit: (t: string) => void; onPhoto: (f: File) => void }) {
+function Home({ wide, tab, onTab, account, onAccount, interestedHomes, cancelledHomes, onOpenInterest, onOpenProgress, resumeText, onResume, onMic, onSubmit, onPhoto }: {
+  wide: boolean;
+  tab: "search" | "interested";
+  onTab: (tab: "search" | "interested") => void;
+  account: CustomerProfile | null;
+  onAccount: () => void;
+  interestedHomes: InterestedHome[];
+  cancelledHomes: InterestedHome[];
+  onOpenInterest: (listing: Listing) => void;
+  onOpenProgress: (lead: Lead) => void;
+  resumeText?: string;
+  onResume: () => void;
+  onMic: () => void;
+  onSubmit: (t: string) => void;
+  onPhoto: (f: File) => void;
+}) {
   const tr = useT();
   const [q, setQ] = useState("");
   const [typing, setTyping] = useState(false);
   const [dragging, setDragging] = useState(false);
+  const [interestTab, setInterestTab] = useState<"active" | "cancelled">("active");
   const examples = tr("examples").split("|");
   const [ex, setEx] = useState(0);
   useEffect(() => {
@@ -431,59 +578,114 @@ function Home({ wide, onMic, onSubmit, onPhoto }: { wide: boolean; onMic: () => 
         </div>
       )}
       <div className="mx-auto min-h-full max-w-[560px] flex flex-col items-center md:justify-center md:pb-16 px-6 pt-[var(--notch,3.5rem)] pb-10 text-center">
-        {!wide && (
-          <div className="animate-rise self-start flex items-center gap-2" style={{ animationDelay: "50ms" }}>
-            <Mascot className="h-9 w-9" sparkle={false} />
-            <span className="text-[17px] font-semibold">Pebble</span>
+        <header className="animate-rise self-stretch flex items-center justify-between gap-2">
+          <div className="flex-1 text-left">
+            {!wide && <div className="flex items-center gap-2"><Mascot className="h-9 w-9" sparkle={false} /><span className="text-[17px] font-semibold">Pebble</span></div>}
           </div>
-        )}
+          {!wide && <nav role="tablist" aria-label="Home sections" className="flex rounded-full bg-white/10 p-1">
+            <button role="tab" aria-selected={tab === "search"} onClick={() => onTab("search")} className={`rounded-full px-3 py-2 text-[13px] font-medium ${tab === "search" ? "bg-white text-navy" : "text-white/75 hover:text-white"}`}>{tr("searchTab")}</button>
+            <button role="tab" aria-selected={tab === "interested"} onClick={() => onTab("interested")} className={`flex items-center gap-1.5 rounded-full px-3 py-2 text-[13px] font-medium ${tab === "interested" ? "bg-white text-navy" : "text-white/75 hover:text-white"}`}>
+              {tr("interestedTab")}
+              {interestedHomes.length > 0 && <span className={`grid h-5 min-w-5 place-items-center rounded-full px-1 text-[10px] ${tab === "interested" ? "bg-navy/10 text-navy" : "bg-white/15 text-white"}`}>{interestedHomes.length}</span>}
+            </button>
+          </nav>}
+          <div className="flex-1 flex justify-end">
+            {!wide && <button onClick={onAccount} aria-label={account ? "Your profile" : tr("signIn")} className="h-9 min-w-9 px-3 rounded-full bg-white/95 text-ink shadow-card text-sm flex items-center justify-center">
+              {account ? <span className="h-6 w-6 rounded-full bg-sage text-white text-[11px] grid place-items-center">{(account.name || "?").split(" ").map((w) => w[0]).slice(0, 2).join("")}</span> : tr("signIn")}
+            </button>}
+          </div>
+        </header>
 
-        <h1 className="animate-rise mt-14 md:mt-0 text-[30px] md:text-[44px] font-semibold leading-[1.12] tracking-[-0.01em]" style={{ animationDelay: "150ms" }}>
-          {tr("tagline1")}<br /><span className="text-white/70">{tr("tagline2")}</span>
-        </h1>
-
-        {/* primary: talk */}
-        <div className="animate-rise flex-1 md:flex-none flex flex-col items-center justify-center py-10 md:py-14" style={{ animationDelay: "280ms" }}>
-          <button type="button" onClick={onMic} aria-label={tr("tapTalk")}
-            className="relative grid h-[132px] w-[132px] place-items-center rounded-full bg-white text-navy shadow-[0_24px_60px_-12px_rgba(0,0,0,0.55)] hover:scale-[1.03] active:scale-95">
-            <span className="ring absolute inset-0 rounded-full bg-white/25" />
-            <span className="ring ring2 absolute inset-0 rounded-full bg-white/25" />
-            <Icon name="mic" className="relative h-12 w-12" stroke={1.7} />
-          </button>
-          <p className="mt-6 text-[17px] font-medium">{tr("tapTalk")}</p>
-        </div>
-
-        {/* secondary: photo or type */}
-        {typing ? (
-          <form className="animate-soft w-full" onSubmit={(e) => { e.preventDefault(); submit(q); }}>
-            <div className="flex items-center gap-1.5 rounded-full bg-white p-1.5 pl-4 text-ink shadow-[0_20px_50px_-12px_rgba(0,0,0,0.45)]">
-              <input autoFocus value={q} onChange={(e) => setQ(e.target.value)} aria-label={tr("describe")} placeholder={tr("describe")}
-                className="min-w-0 flex-1 bg-transparent py-2 text-[15px] placeholder:text-faint focus:outline-none" />
-              <button type="submit" disabled={!q.trim()} aria-label={tr("ask")} className="grid h-10 w-10 shrink-0 place-items-center rounded-full bg-navy text-white disabled:opacity-40"><Icon name="send" className="h-[18px] w-[18px]" /></button>
-            </div>
-            <button type="button" onClick={() => { setTyping(false); setQ(""); }} className="mt-3 rounded-full px-3 py-1 text-[13px] font-medium text-white/80 hover:bg-white/10 hover:text-white">{tr("back")}</button>
-          </form>
-        ) : (
-          <div className="animate-rise flex items-start justify-center gap-10" style={{ animationDelay: "380ms" }}>
-            <div className="flex flex-col items-center gap-2">
-              <PhotoPicker onPick={onPhoto} label={tr("showPhoto")} className="grid h-14 w-14 place-items-center rounded-full border border-white/25 bg-white/10 hover:bg-white/20">
-                <svg viewBox="0 0 24 24" width="22" height="22" fill="none" stroke="currentColor" strokeWidth="1.7" strokeLinecap="round" strokeLinejoin="round" aria-hidden="true"><path d="M4 8h3l2-2.5h6L17 8h3v11H4z" /><circle cx="12" cy="13" r="3.6" /></svg>
-              </PhotoPicker>
-              <span className="text-[12px] text-white/65">{tr("photo")}</span>
-            </div>
-            <div className="flex flex-col items-center gap-2">
-              <button type="button" onClick={() => setTyping(true)} aria-label={tr("typeInstead")} className="grid h-14 w-14 place-items-center rounded-full border border-white/25 bg-white/10 hover:bg-white/20">
-                <Icon name="keyboard" className="h-[22px] w-[22px]" stroke={1.6} />
+        {tab === "interested" ? (
+          <section role="tabpanel" className="animate-rise mt-10 w-full flex-1 text-left">
+            <h1 className="text-[28px] font-semibold leading-tight">{tr("interestedTab")}</h1>
+            <nav role="tablist" aria-label="Interested request groups" className="mt-4 flex rounded-full bg-white/10 p-1">
+              <button role="tab" aria-selected={interestTab === "active"} onClick={() => setInterestTab("active")} className={`flex-1 rounded-full px-3 py-2 text-[13px] font-medium ${interestTab === "active" ? "bg-white text-navy" : "text-white/75 hover:text-white"}`}>
+                {tr("interestActiveTab")} {interestedHomes.length > 0 && <span className="ml-1 text-[11px] opacity-70">{interestedHomes.length}</span>}
               </button>
-              <span className="text-[12px] text-white/65">{tr("type")}</span>
-            </div>
-          </div>
-        )}
+              <button role="tab" aria-selected={interestTab === "cancelled"} onClick={() => setInterestTab("cancelled")} className={`flex-1 rounded-full px-3 py-2 text-[13px] font-medium ${interestTab === "cancelled" ? "bg-white text-navy" : "text-white/75 hover:text-white"}`}>
+                {tr("interestCancelledTab")} {cancelledHomes.length > 0 && <span className="ml-1 text-[11px] opacity-70">{cancelledHomes.length}</span>}
+              </button>
+            </nav>
+            {(interestTab === "active" ? interestedHomes : cancelledHomes).length ? (
+              <div className="mt-4 grid w-full gap-3">
+                {(interestTab === "active" ? interestedHomes : cancelledHomes).map(({ listing, lead }, index) => (
+                  <div key={lead?.id || `${listing.id}-${index}`} className="space-y-2">
+                    <Card l={listing} c={emptyCriteria()} onOpen={() => onOpenInterest(listing)} wide showAddress={Boolean(lead && lead.status !== "new" && Object.values(lead.checklist).every(Boolean))} />
+                    <InterestProgress
+                      listing={listing}
+                      lead={lead}
+                      onOpenProgress={() => lead && onOpenProgress(lead)}
+                      onCancelRequest={() => {
+                        if (!lead || lead.status === "closed" || lead.status === "cancelled") return;
+                        cancelRequest(lead.id);
+                        setInterestTab("cancelled");
+                      }}
+                    />
+                  </div>
+                ))}
+              </div>
+            ) : (
+              <div className="mt-5 rounded-3xl border border-white/15 bg-white/10 p-5 text-[14px] leading-snug text-white/75">
+                <p>{!account ? tr("interestedSignIn") : interestTab === "cancelled" ? tr("interestCancelledEmpty") : tr("interestedEmpty")}</p>
+                {!account && <button onClick={onAccount} className="mt-4 rounded-full bg-white px-4 py-2 text-[13px] font-semibold text-navy">{tr("signIn")}</button>}
+              </div>
+            )}
+          </section>
+        ) : (
+          <>
+            <h1 className="animate-rise mt-10 md:mt-8 text-[30px] md:text-[44px] font-semibold leading-[1.12] tracking-[-0.01em]" style={{ animationDelay: "150ms" }}>
+              {tr("tagline1")}<br /><span className="text-white/70">{tr("tagline2")}</span>
+            </h1>
 
-        {/* one quiet example, tap to try it */}
-        <button key={ex} type="button" onClick={() => submit(examples[ex])} className="animate-soft mt-8 max-w-[300px] text-[12.5px] leading-snug text-white/50 hover:text-white/80">
-          “{examples[ex]}”
-        </button>
+            {resumeText && (
+              <button type="button" onClick={onResume} className="animate-soft mt-6 w-full rounded-2xl border border-white/20 bg-white/10 px-4 py-3 text-left hover:bg-white/15">
+                <span className="block text-[13px] font-semibold text-white">{tr("resumeSearch")}</span>
+                <span className="mt-1 block truncate text-[12px] text-white/65">{resumeText}</span>
+              </button>
+            )}
+
+            <div className="animate-rise flex-1 md:flex-none flex flex-col items-center justify-center py-10 md:py-14" style={{ animationDelay: "280ms" }}>
+              <button type="button" onClick={onMic} aria-label={tr("tapTalk")}
+                className="relative grid h-[132px] w-[132px] place-items-center rounded-full bg-white text-navy shadow-[0_24px_60px_-12px_rgba(0,0,0,0.55)] hover:scale-[1.03] active:scale-95">
+                <span className="ring absolute inset-0 rounded-full bg-white/25" />
+                <span className="ring ring2 absolute inset-0 rounded-full bg-white/25" />
+                <Icon name="mic" className="relative h-12 w-12" stroke={1.7} />
+              </button>
+              <p className="mt-6 text-[17px] font-medium">{tr("tapTalk")}</p>
+            </div>
+
+            {typing ? (
+              <form className="animate-soft w-full" onSubmit={(e) => { e.preventDefault(); submit(q); }}>
+                <div className="flex items-center gap-1.5 rounded-full bg-white p-1.5 pl-4 text-ink shadow-[0_20px_50px_-12px_rgba(0,0,0,0.45)]">
+                  <input autoFocus value={q} onChange={(e) => setQ(e.target.value)} aria-label={tr("describe")} placeholder={tr("describe")}
+                    className="min-w-0 flex-1 bg-transparent py-2 text-[15px] placeholder:text-faint focus:outline-none" />
+                  <button type="submit" disabled={!q.trim()} aria-label={tr("ask")} className="grid h-10 w-10 shrink-0 place-items-center rounded-full bg-navy text-white disabled:opacity-40"><Icon name="send" className="h-[18px] w-[18px]" /></button>
+                </div>
+                <button type="button" onClick={() => { setTyping(false); setQ(""); }} className="mt-3 rounded-full px-3 py-1 text-[13px] font-medium text-white/80 hover:bg-white/10 hover:text-white">{tr("back")}</button>
+              </form>
+            ) : (
+              <div className="animate-rise flex items-start justify-center gap-10" style={{ animationDelay: "380ms" }}>
+                <div className="flex flex-col items-center gap-2">
+                  <PhotoPicker onPick={onPhoto} label={tr("showPhoto")} className="grid h-14 w-14 place-items-center rounded-full border border-white/25 bg-white/10 hover:bg-white/20">
+                    <svg viewBox="0 0 24 24" width="22" height="22" fill="none" stroke="currentColor" strokeWidth="1.7" strokeLinecap="round" strokeLinejoin="round" aria-hidden="true"><path d="M4 8h3l2-2.5h6L17 8h3v11H4z" /><circle cx="12" cy="13" r="3.6" /></svg>
+                  </PhotoPicker>
+                  <span className="text-[12px] text-white/65">{tr("photo")}</span>
+                </div>
+                <div className="flex flex-col items-center gap-2">
+                  <button type="button" onClick={() => setTyping(true)} aria-label={tr("typeInstead")} className="grid h-14 w-14 place-items-center rounded-full border border-white/25 bg-white/10 hover:bg-white/20">
+                    <Icon name="keyboard" className="h-[22px] w-[22px]" stroke={1.6} />
+                  </button>
+                  <span className="text-[12px] text-white/65">{tr("type")}</span>
+                </div>
+              </div>
+            )}
+
+            <button key={ex} type="button" onClick={() => submit(examples[ex])} className="animate-soft mt-8 max-w-[300px] text-[12.5px] leading-snug text-white/50 hover:text-white/80">
+              “{examples[ex]}”
+            </button>
+          </>
+        )}
       </div>
     </div>
   );
@@ -572,7 +774,7 @@ function Thinking({ text, photo }: { text: string; photo: string | null }) {
   );
 }
 
-function Card({ l, c, onOpen, wide = false }: { l: Listing; c: Criteria; onOpen: () => void; wide?: boolean }) {
+function Card({ l, c, onOpen, wide = false, showAddress = false }: { l: Listing; c: Criteria; onOpen: () => void; wide?: boolean; showAddress?: boolean }) {
   const tr = useT();
   return (
     <button onClick={onOpen} className={`text-left shrink-0 snap-center ${wide ? "w-full" : "w-[300px]"} rounded-[28px] bg-card shadow-card overflow-hidden`}>
@@ -581,12 +783,73 @@ function Card({ l, c, onOpen, wide = false }: { l: Listing; c: Criteria; onOpen:
         {l.matterportId && <span className="absolute top-3 right-3 px-2 py-1 rounded-full bg-ink/75 text-white text-[11px] flex items-center gap-1"><Icon name="cube" className="w-3.5 h-3.5" />3D</span>}
       </div>
       <div className="space-y-1 p-4">
-        <p className="font-display text-2xl">{price(l)}</p>
-        <p className="text-sm truncate">{l.title} · {l.neighborhood}</p>
+        {showAddress ? (
+          <>
+            <p className="break-words text-[28px] font-semibold leading-tight text-navy">{l.address}</p>
+            <p className="text-[15px] font-medium">{price(l)}</p>
+            <p className="truncate text-sm text-stone">{l.title} · {l.neighborhood}</p>
+          </>
+        ) : (
+          <>
+            <p className="font-display text-2xl">{price(l)}</p>
+            <p className="truncate text-sm">{l.title} · {l.neighborhood}</p>
+          </>
+        )}
         <p className="text-sm text-stone">{bedsBaths(l)} · {l.minutesToCampus} {tr(l.commuteMode === "walk" ? "walk" : "drive")}</p>
         <p className="text-sm text-sage">{vibeTag(l, c)}</p>
       </div>
     </button>
+  );
+}
+
+function InterestProgress({ listing, lead, onOpenProgress, onCancelRequest }: { listing: Listing; lead?: Lead; onOpenProgress: () => void; onCancelRequest: () => void }) {
+  const tr = useT();
+  const validated = Boolean(lead && lead.status !== "new" && Object.values(lead.checklist).every(Boolean));
+  const tourScheduled = Boolean(lead?.tourSlot);
+  const completed = lead?.status === "closed";
+  const cancelled = lead?.status === "cancelled";
+  const summary = !lead
+    ? tr("interestNotSent")
+    : completed
+    ? tr("interestComplete")
+    : cancelled
+    ? tr("interestCancelled")
+    : lead.status === "application"
+    ? tr("interestApplication")
+    : tourScheduled
+    ? tr("interestTourBooked")
+    : lead.tourDeclined
+    ? tr("interestTourDeclined")
+    : lead.tourOptions?.length
+    ? tr("interestTimesSent")
+    : validated
+    ? tr("interestNoTour")
+    : tr("interestValidating");
+  const steps = [
+    { label: tr("interestStageSaved"), done: true },
+    { label: tr("interestStageValidated"), done: validated },
+    { label: tr("interestStageTour"), done: tourScheduled },
+    { label: tr("interestStageCompleted"), done: completed },
+  ];
+  return (
+    <section aria-label={`${listing.title} progress`} className="rounded-2xl bg-white/10 p-4 text-left text-white">
+      <p className="text-[13px] font-medium">{summary}</p>
+      {tourScheduled && !cancelled && <p className="mt-1 text-[12px] text-white/65">{lead?.tourSlot}</p>}
+      <div className="mt-3 flex flex-wrap gap-1.5">
+        {steps.map((step) => (
+          <span key={step.label} className={`inline-flex items-center gap-1 rounded-full px-2.5 py-1 text-[11px] ${step.done ? "bg-sage-soft text-sage-ink" : "bg-white/10 text-white/60"}`}>
+            {step.done && <Icon name="check" className="h-3 w-3" stroke={2.5} />}
+            {step.label}
+          </span>
+        ))}
+      </div>
+      {lead && (
+        <div className="mt-3 flex items-center justify-between gap-3">
+          <button onClick={onOpenProgress} className="text-[12px] font-medium text-white underline underline-offset-2">{tr("interestOpenProgress")}</button>
+          {lead.status !== "closed" && !cancelled && <button onClick={onCancelRequest} className="text-[12px] font-medium text-white/75 underline underline-offset-2">{tr("cancelDeal")}</button>}
+        </div>
+      )}
+    </section>
   );
 }
 
@@ -756,6 +1019,23 @@ function Status({ lead, onBack }: { lead: Lead; onBack: () => void }) {
   const tr = useT();
   const l = getListing(lead.chosenListingId)!;
   const agent = agentById(lead.agentId);
+  if (lead.status === "cancelled") {
+    return (
+      <div className="absolute inset-0 flex flex-col bg-canvas">
+        <button onClick={onBack} className="self-start px-5 pb-2 pt-[var(--notch,3.5rem)] text-sm text-stone">{tr("back")}</button>
+        <div className="px-5 pt-4">
+          <section className="rounded-3xl bg-clay-soft p-4">
+            <p className="font-display text-2xl">{tr("interestCancelled")}</p>
+            <p className="mt-1 text-[14px] leading-snug text-stone">{tr(lead.cancelledBy === "client" ? "requestCancelledByYouBody" : "requestCancelledBody")}</p>
+          </section>
+          <div className="mt-4 flex items-center gap-3 rounded-3xl bg-card p-2 shadow-card">
+            <div className="h-16 w-20 overflow-hidden rounded-2xl"><HomeArt listing={l} className="h-full w-full" /></div>
+            <div className="min-w-0"><div className="font-display text-lg">{price(l)}</div><div className="truncate text-sm">{l.title}</div><div className="text-xs text-stone">{l.neighborhood}</div></div>
+          </div>
+        </div>
+      </div>
+    );
+  }
   const order = ["new", "verified", "touring", "application", "closed"];
   const at = order.indexOf(lead.status);
   const lastAgentMsg = [...lead.messages].reverse().find((m) => m.from === "agent");
@@ -763,7 +1043,7 @@ function Status({ lead, onBack }: { lead: Lead; onBack: () => void }) {
   const steps = [
     { t: tr("sent"), d: "Your wishes and this home, summarized." },
     { t: at >= 1 ? `${tr("verifiedBy")} ${agent.name}` : tr("verifying"), d: at >= 1 ? "Available, price confirmed, a good fit." : "Checking availability, price and fit…" },
-    { t: lead.tourSlot ? `Tour booked · ${lead.tourSlot}` : tr("book"), d: at >= 2 ? "See you there!" : "Pick a time that works." },
+    { t: lead.tourSlot ? `Tour booked · ${lead.tourSlot}` : tr("book"), d: lead.tourSlot ? (at >= 2 ? "See you there!" : "") : lead.tourDeclined ? tr("tourDeclined") : lead.tourOptions?.length ? tr("tourOfferPrompt") : tr("tourOfferWaiting") },
     { t: at >= 3 ? "Application sent" : tr("apply"), d: at >= 3 ? `${agent.name.split(" ")[0]} is handling the paperwork.` : "One tap when you're ready." },
     { t: at >= 4 ? (l.kind === "buy" || l.kind === "land" ? "It's yours!" : tr("welcome")) : l.kind === "buy" || l.kind === "land" ? "Close" : tr("movein"), d: at >= 4 ? "Keys are waiting." : "" },
   ];
@@ -800,7 +1080,17 @@ function Status({ lead, onBack }: { lead: Lead; onBack: () => void }) {
                   </div>
                 )}
                 {i === 2 && at === 1 && (
-                  <div className="mt-3 flex gap-2 rise">{["Sat 10:00", "Sat 2:30", "Sun 11:00"].map((t) => <button key={t} onClick={() => bookTour(lead.id, t)} className="px-3 h-9 rounded-full bg-sage-soft text-sage-ink text-[13px]">{t}</button>)}</div>
+                  <div className="mt-3 rise">
+                    {lead.tourDeclined ? <p className="text-[13px] text-stone">{tr("tourDeclined")}</p> : lead.tourOptions?.length ? (
+                      <>
+                        <div className="flex flex-wrap gap-2">{lead.tourOptions.map((time) => <button key={time} onClick={() => bookTour(lead.id, time)} className="min-h-9 rounded-full bg-sage-soft px-3 text-[13px] text-sage-ink">{time}</button>)}</div>
+                        <button onClick={() => declineTour(lead.id)} className="mt-2 h-9 rounded-full border border-line px-3 text-[13px] text-stone">{tr("declineTour")}</button>
+                      </>
+                    ) : <p className="text-[13px] text-stone">{tr("tourOfferWaiting")}</p>}
+                  </div>
+                )}
+                {i === 2 && at === 2 && lead.tourSlot && (
+                  <button onClick={() => cancelTour(lead.id)} className="mt-3 h-9 rounded-full border border-line px-3 text-[13px] text-stone rise">{tr("cancelTour")}</button>
                 )}
                 {i === 3 && at === 2 && (
                   <div className="mt-3 rise">

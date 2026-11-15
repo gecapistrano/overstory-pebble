@@ -2,23 +2,22 @@
 /**
  * Brokerage dashboard, in three separate parts:
  *   Sales     - revenue, deals, first-reply time, follow-up saves, revenue + forecast, agents, the broker's-assistant
- *               strategies and the live activity feed
+ *               strategies and the recent activity feed
  *   Customers - what shoppers search for, where they look, who they are, the most likely buyers/renters, and a
  *               per-property view for owners
  *   Market    - CoStar market data and the Gemini market recap (both collapsible)
- * Everything is recomputed every 5 seconds from lib/brokerage.ts.
+ * App activity and CoStar market data are recomputed from lib/brokerage.ts.
  */
 import Link from "next/link";
 import { useEffect, useMemo, useRef, useState, type ReactNode } from "react";
 import { Area, Bar, CartesianGrid, ComposedChart, Line, ResponsiveContainer, Tooltip, XAxis, YAxis } from "recharts";
 import { aiStrategy } from "@/lib/ai";
-import { CITIES, change, factsOf, fmtDur, fmtMoney, snapshot, tickLive, type Fact, type PropertyStats, type Shopper, type Snapshot } from "@/lib/brokerage";
+import { CITIES, change, factsOf, fmtDur, fmtMoney, snapshot, type Fact, type PropertyStats, type Shopper, type Snapshot } from "@/lib/brokerage";
 import { localStrategies, type Strategy } from "@/lib/strategy";
 import { getState, now, update, useStore } from "@/lib/store";
 import { Avatar, Icon, Logo } from "@/components/ui";
 import { CostarMarket, MarketRecap } from "@/components/dashboard/MarketIntel";
 
-const TICK = 5000;
 const ago = (t: number, at: number) => {
   const s = Math.max(0, Math.round((at - t) / 1000));
   return s < 10 ? "just now" : s < 60 ? `${s} sec ago` : s < 3600 ? `${Math.round(s / 60)} min ago` : s < 86400 ? `${Math.round(s / 3600)} hr ago` : `${Math.round(s / 86400)} d ago`;
@@ -26,20 +25,15 @@ const ago = (t: number, at: number) => {
 
 export default function Dashboard() {
   const [city, setCity] = useState<string>(CITIES[0]);
-  const [beat, setBeat] = useState(0);
   const leads = useStore((s) => s.leads);
   const views = useStore((s) => s.views?.length || 0);
   const searches = useStore((s) => s.searches?.length || 0);
+  const profiles = useStore((s) => s.profiles);
+  const clockOffset = useStore((s) => s.clockOffset);
   const approved = useStore((s) => s.approvedStrategies);
   const dismissed = useStore((s) => s.dismissedStrategies);
 
-  // every 5 seconds: advance the live layer and recompute everything
-  useEffect(() => {
-    tickLive(now());
-    const id = window.setInterval(() => { tickLive(now()); setBeat((b) => b + 1); }, TICK);
-    return () => window.clearInterval(id);
-  }, []);
-  const snap = useMemo(() => snapshot(getState(), city, now()), [city, beat, leads, views, searches]);
+  const snap = useMemo(() => snapshot(getState(), city, now()), [city, clockOffset, leads, views, searches, profiles]);
 
   return (
     <div className="min-h-screen bg-canvas text-ink">

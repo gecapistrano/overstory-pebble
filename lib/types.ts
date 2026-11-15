@@ -141,6 +141,9 @@ export interface Lead {
   archived?: boolean;
   language?: string; // client language when not English (auto-translated)
   customerId?: string; // links the lead to the customer's searches and views
+  tourOptions?: string[];
+  tourDeclined?: boolean;
+  cancelledBy?: "client" | "agent";
 }
 
 export interface Agent {
@@ -183,6 +186,7 @@ export interface CustomerProfile {
   passwordHash?: string; // salted SHA-256, never the password itself
   salt?: string;
   consent?: Consent;
+  interestedHomes?: { listingId: string; at: number }[];
 }
 /** What the customer agreed to. Only `terms` is required to have an account; everything else is opt-in. */
 export interface Consent {

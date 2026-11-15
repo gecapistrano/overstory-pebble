@@ -8,7 +8,7 @@ import "./globals.css";
 import type { Metadata, Viewport } from "next";
 
 export const metadata: Metadata = {
-  title: "Pebble — Say the house. Find your home.",
+  title: "Pebble",
   description: "Voice-first property concierge for brokerages, powered by an Agentic Assistant. The Agentic Assistant suggests, a Real Estate Agent verifies.",
 };
 export const viewport: Viewport = { width: "device-width", initialScale: 1, maximumScale: 1, themeColor: "#16325A" };
