@@ -10,7 +10,7 @@ export const matterportUrl = (modelId: string, autoplay = true) =>
 export default function MatterportTour({ modelId, title, className = "", autoplay = true }: { modelId: string; title?: string; className?: string; autoplay?: boolean }) {
   const [loaded, setLoaded] = useState(false);
   return (
-    <div className={`bg-[#1D1A1C] ${className}`}>
+    <div className={`bg-[#253247] ${className}`}>
       {!loaded && (
         <div className="absolute inset-0 flex flex-col items-center justify-center gap-3 text-white/80 text-[13px]">
           <span className="w-8 h-8 rounded-full border-2 border-white/30 border-t-white animate-spin" />

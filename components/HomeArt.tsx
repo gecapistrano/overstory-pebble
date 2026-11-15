@@ -17,6 +17,12 @@ const PAL: Record<string, P> = {
   land: { wall: "#fff", roof: "#fff", trim: "#6B5A45", accent: "#E9C46A", glass: "#fff", sky: "#F6E7DA", floor: "#fff", ground: "#9CBF7E" },
 };
 
+/** lib/styles.ts taxonomy -> the nearest illustration palette above. */
+const STYLE_PAL: Record<string, string> = {
+  modern: "contemporary", japandi: "scandinavian", "mid-century modern": "craftsman", traditional: "colonial",
+  transitional: "colonial", bohemian: "artsy", coastal: "scandinavian", rustic: "craftsman", "art deco": "gothic",
+};
+
 function rng(seed: number) {
   let s = seed % 2147483647 || 1;
   return () => ((s = (s * 16807) % 2147483647) - 1) / 2147483646;
@@ -279,7 +285,7 @@ export default function HomeArt({ listing, variant = "exterior", className = "" 
       />
     );
   }
-  const p = PAL[listing.style] || PAL.contemporary;
+  const p = PAL[listing.style] || PAL[STYLE_PAL[listing.style]] || PAL.contemporary;
   const r = rng(listing.artSeed + variant.length * 31);
   return (
     <svg viewBox="0 0 400 300" preserveAspectRatio="xMidYMid slice" className={className} role="img" aria-label={listing.title}>

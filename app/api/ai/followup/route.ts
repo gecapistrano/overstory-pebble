@@ -71,8 +71,11 @@ export async function POST(req: Request) {
       }
       return { ok: true };
     };
+    let model: string | undefined; // chosen on the first step (with fallback), then kept for the whole run
     for (let step = 0; step < 6; step++) {
-      const { parts, content } = await generate({ system: SYSTEM, contents, tools: TOOLS });
+      const out = await generate({ system: SYSTEM, contents, tools: TOOLS, model, pin: Boolean(model) });
+      model = out.model;
+      const { parts, content } = out;
       contents.push(content);
       const calls = parts.filter((p): p is Extract<Part, { functionCall: unknown }> => "functionCall" in p);
       if (!calls.length) break;

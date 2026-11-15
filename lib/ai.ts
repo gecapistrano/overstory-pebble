@@ -5,6 +5,8 @@
  */
 "use client";
 import type { Criteria, Lead, LeadRecap, Listing, VibeTags } from "./types";
+import type { Fact } from "./brokerage";
+import type { Strategy } from "./strategy";
 
 export interface AIParse {
   language: string;
@@ -42,14 +44,15 @@ export function aiStatus() {
 }
 
 export const aiParse = (text: string, prev: Criteria, imageTags?: string[]) => post<AIParse>("parse", { text, prev, imageTags });
-export const aiVibe = async (images: string[]) => (await post<{ tags: VibeTags }>("vibe", { images }))?.tags ?? null;
+export const aiVibe = async (images: string[], language?: string) => (await post<{ tags: VibeTags }>("vibe", { images, language }))?.tags ?? null;
 export const aiRecap = async (criteria: Criteria, transcript: string[], listing: Listing, language?: string) =>
   (await post<{ recap: LeadRecap }>("recap", { criteria, transcript, listing, language }))?.recap ?? null;
 export const aiDraft = (lead: Lead, listing: Listing, agentName: string) => post<{ english: string; native: string }>("draft", { lead, listing, agentName, purpose: "contact" });
 export const aiFollowup = (lead: Lead, now: number) =>
   post<{ draft: string; draftNative: string; reason: string; trace: { tool: string; args: Record<string, unknown>; result: string }[] }>("followup", { lead, now }, 45000);
-export const aiStrategy = async (metrics: Record<string, unknown>) =>
-  (await post<{ strategies: { id: string; title: string; why: string; impact: string }[] }>("strategy", { metrics }))?.strategies ?? null;
+/** Broker's-assistant strategies; each cites fact ids from lib/brokerage.ts factsOf(). */
+export const aiStrategy = async (city: string, facts: Fact[], agents: unknown[]) =>
+  (await post<{ strategies: Strategy[] }>("strategy", { city, facts, agents }, 45000))?.strategies ?? null;
 export interface AIMarket {
   recap: string;
   insights: { title: string; detail: string; metric: string }[];

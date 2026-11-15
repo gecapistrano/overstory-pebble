@@ -28,8 +28,8 @@ const STATS = [
 
 export default function Hub() {
   const cards = [
-    { href: "/app", t: "Homebuyers app", d: "Tap and talk to describe, or just upload a reference photo.", tag: "Home seekers · iOS & Android" },
-    { href: "/agent", t: "Real Estate Agent app", d: "Agentic Assistant recap, you verify and contact until the deal is closed.", tag: "Licensed Real Estate Agents · iOS & Android" },
+    { href: "/app", t: "Homebuyers app", d: "Tap and talk to describe, or just upload a reference photo.", tag: "Home seekers" },
+    { href: "/agent", t: "Real Estate Agent app", d: "Agentic Assistant recap, you verify and contact until the deal is closed.", tag: "Licensed Real Estate Agents" },
     { href: "/dashboard", t: "Brokerage dashboard", d: "See how data turns into useful information. Revenue, sales forecast, and strategies.", tag: "Brokerage owners · Web" },
   ];
   return (
@@ -37,7 +37,7 @@ export default function Hub() {
       <div className="max-w-5xl mx-auto px-4 sm:px-6 py-14">
         <Logo className="text-[22px]" />
         <h1 className="mt-10 text-[44px] md:text-[56px] leading-[1.02] font-bold tracking-tight">Say the house.<br />Find your home.</h1>
-        <p className="mt-4 text-[18px] text-[#5b5357] max-w-xl">Pebble is a voice-first property concierge for brokerages, powered by an Agentic Assistant. <b className="text-ink">The Agentic Assistant suggests, a Real Estate Agent verifies.</b> We help brokerages close.</p>
+        <p className="mt-4 text-[18px] text-[#4A586D] max-w-xl">Pebble is a voice-first property concierge for brokerages, powered by an Agentic Assistant. <b className="text-ink">The Agentic Assistant suggests, a Real Estate Agent verifies.</b> We help brokerages close.</p>
 
         {/* The problem */}
         <details className="group mt-10 rounded-3xl bg-white shadow-card">
@@ -50,7 +50,7 @@ export default function Hub() {
           </summary>
         <section className="px-5 sm:px-6 pb-6" aria-labelledby="problem">
           <h2 id="problem" className="text-[24px] md:text-[30px] leading-tight font-bold tracking-tight max-w-3xl">The buyer is lost in listings. The agent is losing the client.</h2>
-          <p className="mt-3 text-[16px] text-[#5b5357] max-w-3xl">Someone moves to a new city and scrolls through hundreds of listings, still unsure which house is the one. On the other side, an agent watches that client hesitate, stop replying, and drift away. That isn’t bad luck. It’s revenue walking out the door.</p>
+          <p className="mt-3 text-[16px] text-[#4A586D] max-w-3xl">Someone moves to a new city and scrolls through hundreds of listings, still unsure which house is the one. On the other side, an agent watches that client hesitate, stop replying, and drift away. That isn’t bad luck. It’s revenue walking out the door.</p>
           <div className="mt-6 grid md:grid-cols-3 gap-4">
             {STATS.map((s) => (
               <figure key={s.n} className="rounded-3xl bg-blush p-6 flex flex-col">
@@ -59,12 +59,12 @@ export default function Hub() {
                 <p className="mt-3 text-[15px] leading-snug text-ink">{s.claim}</p>
                 <figcaption className="mt-auto pt-4 text-[12px] leading-snug text-mute">
                   Source:{" "}
-                  <a href={s.href} target="_blank" rel="noopener noreferrer" className="underline decoration-[#d9cdd0] underline-offset-2 hover:text-ink">{s.src}</a>
+                  <a href={s.href} target="_blank" rel="noopener noreferrer" className="underline decoration-[#CDD6E3] underline-offset-2 hover:text-ink">{s.src}</a>
                 </figcaption>
               </figure>
             ))}
           </div>
-          <p className="mt-5 text-[15px] text-[#5b5357] max-w-3xl"><b className="text-ink">Pebble’s answer:</b> listen → understand → verify → close. Clients just talk, in their own language. Licensed agents get the lead instantly with a recap, verify it, and follow up until the house becomes a home. Live today on CoStar listings in <b className="text-ink">Houston</b> and <b className="text-ink">Los Angeles</b>.</p>
+          <p className="mt-5 text-[15px] text-[#4A586D] max-w-3xl"><b className="text-ink">Pebble’s answer:</b> listen → understand → verify → close. Clients just talk, in their own language. Licensed agents get the lead instantly with a recap, verify it, and follow up until the house becomes a home. Live today on CoStar listings in <b className="text-ink">Houston</b> and <b className="text-ink">Los Angeles</b>.</p>
         </section>
         </details>
 
@@ -72,7 +72,7 @@ export default function Hub() {
         <section className="mt-12" aria-labelledby="walkthrough">
           <div className="text-[12px] font-semibold text-coral uppercase tracking-wider">The walkthrough</div>
           <h2 id="walkthrough" className="mt-1 text-[28px] md:text-[34px] leading-tight font-bold tracking-tight">From “find me a house” to “welcome home”.</h2>
-          <Link href="/demo" className="mt-6 flex items-center justify-between gap-4 rounded-3xl bg-ink text-white p-6">
+          <Link href="/demo" className="mt-6 flex items-center justify-between gap-4 rounded-3xl bg-navy text-white p-6">
             <div><div className="font-bold text-[18px]">Live demo — all three side by side</div><div className="text-white/70 text-[14px]">Search for a house, tap Interested!, and watch the lead reach the Real Estate Agent and the dashboard in real time, all the way to a closed deal.</div></div>
             <Icon name="chev" />
           </Link>

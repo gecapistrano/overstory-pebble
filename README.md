@@ -78,6 +78,55 @@ Pebble's AI runs on the **Gemini API** (default model `gemini-3.8-flash`).
 
 Every AI step has an on-device fallback, so a live demo keeps working if the network drops.
 
+## CoStar data
+
+Listings and market numbers come from the CoStar data kit (Houston + Los Angeles). The demo focuses on **Greater Heights, Houston**; commute times are to Downtown Houston (Downtown LA for LA).
+
+```bash
+# COSTAR_DUMP_PATH in .env.local points at the kit (…/costar-hackathon-kit)
+npm run costar   # rebuilds data/listings.json + data/market.json (~5 s)
+```
+
+- `scripts/ingest-costar.mjs` joins residential listings + listing features, apartment listings + commercial property records, and `commercial-properties.csv` (Matterport model ids). Vibe tags (style, materials, light) are derived from CoStar remarks, feature lines and photo alt text.
+- `data/market.json` layers: active/sold/leased residential stats per city and neighborhood, apartment asking rents by bedroom and availability, commercial sale comps (24 months), and the largest employers near downtown (tenancies + company records).
+- `lib/market.ts` scores listings into opportunities (below-median $/sq ft or rent, price cuts, days on market, open units, fit with open leads); Gemini picks and explains them on the dashboard, with an on-device fallback.
+- 3D tours embed each listing's Matterport scan (`components/MatterportTour.tsx`); photos use the Matterport scan thumbnail first, then CoStar photos.
+- Texas does not disclose sale prices, so Houston "sold" stats use the last asking price.
+
+## Demo-proof AI (Gemini quotas)
+
+Free-tier Gemini keys have small daily limits per model (e.g. 500 requests/day for `gemini-3.5-flash-lite`, 20 for `gemini-3.8-flash`). `lib/gemini.ts` keeps the app working when one runs out:
+
+- **Fallback chain**: `GEMINI_MODEL`, then `GEMINI_FALLBACK_MODELS`. Each model has its own quota.
+- **Quota memory**: a model that answers 429 is skipped until its quota resets, so requests go straight to one that works.
+- **Response cache**: identical requests are answered from `.cache/gemini` (instant, no quota).
+- **Follow-up agent**: picks a working model on its first step and stays on it.
+- `GET /api/ai/status` shows which models are ready right now.
+
+Before a demo (with the app running):
+
+```bash
+BASE=http://localhost:3001 npm run ai:check -- --warm   # quota per model + pre-caches the scripted demo lines
+```
+
+Then rehearse the demo once: every AI answer it produces is cached and replays instantly on stage. Run only one dev server (several servers reloading pages burn quota fast).
+
+## Maps: 2D / 3D, terrain and exterior 3D
+
+- **Layers**: every map has a **Map / Aerial / Terrain** switch. Terrain is OpenTopoMap shaded relief + contours in 2D; in 3D it is real relief from AWS Terrain Tiles (exaggerated ×4 so Houston's gentle bayou relief reads at street scale).
+- **2D / 3D** (agent full-screen map): 3D is MapLibre GL over OpenFreeMap's vector style with OpenStreetMap buildings extruded to height (`components/MapView3D.tsx`).
+- **Exterior 3D**: 232 Matterport models have a drone-trained Gaussian splat of the outside. `npm run exteriors` joins `models_index.csv` to the listings and writes `data/exteriors.json` (53 listings today). `/api/exterior/{sid}` streams the first ~96 MB of the 200–550 MB `splat.ply` (Gaussians are stored in random order, so that is a fair sample), keeps what is within 32 m of the house, packs it into the 32-byte `.splat` layout (~4–5 MB) and caches it in `.cache/exterior/`. `components/ExteriorView.tsx` renders it with `@mkkellogg/gaussian-splats-3d`.
+- **CoStar facts** on the agent's map card: days on market, price per sqft, change vs. original list price, HOA, units open and vacancy.
+
+## Vexcel aerial imagery
+
+The key stays on the server; every call goes through `/api/vexcel/*` (`lib/vexcel.ts`) and is cached on disk in `.cache/vexcel/`.
+
+- **Aerial map layer**: every map has a Map / Aerial switch. Tiles come from Vexcel `ortho/extract` via `/api/vexcel/tile/{z}/{x}/{y}` (zoom 11+, Houston and LA). The dashboard map opens in aerial.
+- **Per-listing aerial view** (`components/AerialView.tsx`): a bird's-eye oblique and a top-down ortho with the parcel outlined in gold. Shown on the client listing page, the agent's lead screen (remote check before verifying) and the dashboard.
+- **Property attributes from Vexcel's imagery AI**: footprint, roof material/shape, roof discoloration, pool, tree cover, capture date. Gemini receives them with the dashboard suggestions, so it can say things like "use the 63% roof discoloration in negotiation".
+- Warm the cache before a demo (with the app running): `BASE=http://localhost:3000 npm run vexcel:warm` (about 580 requests, around 1 minute).
+
 ## Run it
 
 ```bash
@@ -100,9 +149,10 @@ Pages:
 | Area | Status |
 | --- | --- |
 | Gemini AI across client, agent and dashboard | Built; tested end to end against a local stand-in for the API. First run with a live key still to do. |
-| Listings | Sample listings with generated illustrations while the Houston and LA data is connected through the adapter layer (`lib/adapters/`) |
+| Listings | **Live CoStar data**: 460 Houston + LA listings (Homes.com MLS for sale/rent + Apartments.com communities), each with a Matterport 3D tour (`lib/adapters/costar.ts`) |
+| Market intelligence | **Live CoStar data** layered from residential listings & sales, apartment rents/availability, commercial sale comps and tenant employers (`data/market.json`); Gemini writes the dashboard recap and suggestions (`/api/ai/market`) |
 | Sign-in and consent screen | Next build (see "Respecting client data") |
-| Dashboard figures | Demo data |
+| Dashboard revenue, pipeline, agents | Demo data (mock sales records) |
 
 ## Architecture
 

@@ -1,247 +1,535 @@
 "use client";
-import { useEffect, useMemo, useState } from "react";
+/**
+ * Brokerage dashboard, in three separate parts:
+ *   Sales     - revenue, deals, first-reply time, follow-up saves, revenue + forecast, agents, the broker's-assistant
+ *               strategies and the live activity feed
+ *   Customers - what shoppers search for, where they look, who they are, the most likely buyers/renters, and a
+ *               per-property view for owners
+ *   Market    - CoStar market data and the Gemini market recap (both collapsible)
+ * Everything is recomputed every 5 seconds from lib/brokerage.ts.
+ */
+import Link from "next/link";
+import { useEffect, useMemo, useRef, useState, type ReactNode } from "react";
+import { Area, Bar, CartesianGrid, ComposedChart, Line, ResponsiveContainer, Tooltip, XAxis, YAxis } from "recharts";
 import { aiStrategy } from "@/lib/ai";
-import { Area, AreaChart, Bar, BarChart, CartesianGrid, ComposedChart, Line, ResponsiveContainer, Tooltip, XAxis, YAxis } from "recharts";
-import { agentById } from "@/lib/recap";
-import { now, update, useStore } from "@/lib/store";
+import { CITIES, change, factsOf, fmtDur, fmtMoney, snapshot, tickLive, type Fact, type PropertyStats, type Shopper, type Snapshot } from "@/lib/brokerage";
+import { localStrategies, type Strategy } from "@/lib/strategy";
+import { getState, now, update, useStore } from "@/lib/store";
 import { Avatar, Icon, Logo } from "@/components/ui";
-import MarketIntel from "@/components/dashboard/MarketIntel";
-import { cityMarket, MARKET } from "@/lib/market";
+import { CostarMarket, MarketRecap } from "@/components/dashboard/MarketIntel";
 
-/* ---------- Demo data (clearly labeled in the UI) ---------- */
-const MONTHS = ["Dec", "Jan", "Feb", "Mar", "Apr", "May", "Jun", "Jul", "Aug", "Sep", "Oct", "Nov"];
-const REVENUE = [92, 88, 97, 108, 121, 138, 152, 171, 214, 176, 158, 186].map((k) => k * 1000);
-const RESPONSE_MIN = [190, 172, 160, 95, 48, 30, 21, 14, 11, 9, 7, 6];
-
-/** Forecast: least-squares trend × last-year seasonality (demo). */
-function forecast(series: number[], n = 3) {
-  const N = series.length;
-  const xs = series.map((_, i) => i);
-  const mx = xs.reduce((a, b) => a + b) / N, my = series.reduce((a, b) => a + b) / N;
-  const slope = xs.reduce((a, x, i) => a + (x - mx) * (series[i] - my), 0) / xs.reduce((a, x) => a + (x - mx) ** 2, 0);
-  const season = [0.86, 0.84, 0.9]; // Dec–Feb seasonal index from prior years
-  return [...Array(n)].map((_, k) => Math.round((my + slope * (N + k - mx)) * season[k] / 1000) * 1000);
-}
-
-const STRATEGIES = [
-  { id: "s1", title: "Pre-verify 20 homes before the August rush", why: "Forecast shows relocation leads +38% in Jul–Aug. Verified homes close 2.4× faster.", impact: "+$31k est. Aug revenue" },
-  { id: "s2", title: "Add a Saturday on-call Real Estate Agent", why: "Weekend leads wait 3.1× longer for a first reply and cancel 22% more often.", impact: "−9% weekend cancellations" },
-  { id: "s3", title: "Ask owners for natural-light photos", why: "“Bright” and “artsy” are the most-asked vibes in the Heights; listings tagged bright get 2.1× more tours.", impact: "+14% tour requests" },
-];
+const TICK = 5000;
+const ago = (t: number, at: number) => {
+  const s = Math.max(0, Math.round((at - t) / 1000));
+  return s < 10 ? "just now" : s < 60 ? `${s} sec ago` : s < 3600 ? `${Math.round(s / 60)} min ago` : s < 86400 ? `${Math.round(s / 3600)} hr ago` : `${Math.round(s / 86400)} d ago`;
+};
 
 export default function Dashboard() {
+  const [city, setCity] = useState<string>(CITIES[0]);
+  const [beat, setBeat] = useState(0);
   const leads = useStore((s) => s.leads);
+  const views = useStore((s) => s.views?.length || 0);
+  const searches = useStore((s) => s.searches?.length || 0);
   const approved = useStore((s) => s.approvedStrategies);
   const dismissed = useStore((s) => s.dismissedStrategies);
-  const [strategies, setStrategies] = useState(STRATEGIES);
-  const [byGemini, setByGemini] = useState(false);
+
+  // every 5 seconds: advance the live layer and recompute everything
   useEffect(() => {
-    aiStrategy({
-      month: "November 2026", revenueByMonth: Object.fromEntries(MONTHS.map((m, i) => [m, REVENUE[i]])), forecastNext3: forecast(REVENUE),
-      avgAgentResponseMinutesByMonth: RESPONSE_MIN, funnel: { voiceRequests: 412, qualified: 142, verified: 97, toured: 61, applications: 34, closed: 21 },
-      weekendFirstReplyMultiple: 3.1, weekendCancellationGapPct: 22, mostAskedVibesInHeights: ["bright", "artsy", "cozy"], toursBrightVsOther: 2.1, dealsRescuedByFollowups: 7,
-      costarMarket: { city: MARKET.demo.city, ...(({ residential, apartments, neighborhoods }) => ({ residential, apartments: { availabilityPct: apartments.availabilityPct, medianAskingRent: apartments.medianAskingRent }, demoNeighborhood: neighborhoods.find((h) => h.name === MARKET.demo.neighborhood) }))(cityMarket(MARKET.demo.city)) },
-    }).then((s) => { if (s?.length) { setStrategies(s.slice(0, 3).map((x, i) => ({ ...x, id: `g${i + 1}` }))); setByGemini(true); } });
+    tickLive(now());
+    const id = window.setInterval(() => { tickLive(now()); setBeat((b) => b + 1); }, TICK);
+    return () => window.clearInterval(id);
   }, []);
-
-  const live = useMemo(() => {
-    const active = leads.filter((l) => !l.archived);
-    const closed = leads.filter((l) => l.status === "closed");
-    return {
-      verified: active.filter((l) => l.status !== "new").length,
-      qualified: active.length,
-      closed: closed.length,
-      closedValue: closed.reduce((a, l) => a + l.dealValue, 0),
-      rescued: leads.filter((l) => l.rescuedByNudge).length,
-      rescuedValue: leads.filter((l) => l.rescuedByNudge).reduce((a, l) => a + l.dealValue, 0),
-    };
-  }, [leads]);
-
-  const fc = forecast(REVENUE);
-  const revData = [
-    ...MONTHS.map((m, i) => ({ m, actual: i === 11 ? REVENUE[i] + live.closedValue : REVENUE[i], forecast: i === 11 ? REVENUE[i] + live.closedValue : null as number | null, lo: null as number | null, hi: null as number | null })),
-    ...["Dec", "Jan", "Feb"].map((m, k) => ({ m: m + "*", actual: null, forecast: fc[k], lo: fc[k] * 0.88, hi: fc[k] * 1.12 })),
-  ];
-  const revenueNow = REVENUE[11] + live.closedValue;
-  const funnel = [
-    { s: "Voice requests", v: 412 + leads.length },
-    { s: "Qualified by Agentic Assistant", v: 142 + live.qualified },
-    { s: "Verified by Real Estate Agents", v: 97 + live.verified },
-    { s: "Toured", v: 61 + leads.filter((l) => ["touring", "application", "closed"].includes(l.status)).length },
-    { s: "Application / offer", v: 34 + leads.filter((l) => ["application", "closed"].includes(l.status)).length },
-    { s: "Closed", v: 21 + live.closed },
-  ];
-  const events = leads.flatMap((l) => l.events.map((e) => ({ ...e, who: l.clientName }))).sort((a, b) => b.at - a.at).slice(0, 9);
-  const agentRows = [
-    { id: "maya", closed: 7, rev: 58200, resp: 3, ver: 96 },
-    { id: "priya", closed: 6, rev: 49800, resp: 5, ver: 92 },
-    { id: "marcus", closed: 4, rev: 44100, resp: 8, ver: 88 },
-    { id: "daniel", closed: 4, rev: 21300, resp: 6, ver: 90 },
-    { id: "elena", closed: 2, rev: 13000, resp: 9, ver: 85 },
-  ];
+  const snap = useMemo(() => snapshot(getState(), city, now()), [city, beat, leads, views, searches]);
 
   return (
-    <div className="min-h-screen bg-[#FBF5F5] text-ink">
-      <header className="h-16 px-4 md:px-8 flex items-center gap-2 md:gap-4 bg-white border-b border-[#f0e4e4]">
-        <Logo className="text-[18px] shrink-0" />
-        <span className="text-mute hidden sm:inline">/</span>
-        <span className="font-semibold truncate hidden sm:inline">Stonebridge Realty</span>
-        <span className="sm:ml-2 px-2 py-0.5 rounded-md bg-[#FFF4D6] text-[#8A6A12] text-[11px] font-semibold shrink-0">SALES: DEMO DATA</span>
-        <span className="px-2 py-0.5 rounded-md bg-[#E8F0FB] text-[#2B5797] text-[11px] font-semibold shrink-0 hidden md:inline">LISTINGS & MARKET: COSTAR</span>
-        <div className="ml-auto flex items-center gap-2 text-[13px] shrink-0">
-          <span className="px-3 py-1.5 rounded-full bg-blush font-medium hidden md:inline">November 2026</span>
-          <Avatar initials="OM" color="#1D1A1C" size={32} />
+    <div className="min-h-screen bg-canvas text-ink">
+      {/* navy top bar, as in the OverStory broker-desk design */}
+      <div className="sticky top-0 z-20 bg-navy text-white shadow-[0_4px_18px_-6px_rgba(22,50,90,0.45)]">
+        <div className="mx-auto max-w-[1400px] h-[58px] px-4 md:px-8 flex items-stretch gap-4 md:gap-6">
+          <Link href="/" className="flex items-center hover:opacity-90" aria-label="Pebble home"><Logo className="text-[17px]" /></Link>
+          <nav className="flex items-stretch" role="group" aria-label="City">
+            {CITIES.map((c) => (
+              <button key={c} onClick={() => setCity(c)} aria-pressed={city === c} className={`border-b-2 px-3 text-[13px] font-medium ${city === c ? "border-[#5FA8FF] text-white" : "border-transparent text-white/60 hover:text-white"}`}>{c}</button>
+            ))}
+          </nav>
+          <div className="flex-1" />
+          <nav className="hidden sm:flex items-center gap-2 text-[13px]">
+            <Link href="/app" className="rounded-md px-3 py-1.5 text-white/75 hover:text-white">Client app</Link>
+            <Link href="/agent" className="rounded-md bg-navy-700 px-3 py-1.5 font-medium hover:bg-navy-500">Agent app</Link>
+          </nav>
         </div>
+      </div>
+      <header className="mx-auto max-w-[1400px] px-4 md:px-8 pt-8 pb-4">
+        <h1 className="font-display text-4xl md:text-5xl">Stonebridge Realty</h1>
+        <p className="mt-2 text-sm text-stone flex items-center gap-2">
+          <span className="relative flex w-2 h-2"><span className="absolute inset-0 rounded-full bg-positive animate-ping opacity-60" /><span className="relative w-2 h-2 rounded-full bg-positive" /></span>
+          Live · {new Date(snap.now).toLocaleDateString("en-US", { weekday: "long", month: "long", day: "numeric", year: "numeric" })} · {new Date(snap.now).toLocaleTimeString("en-US", { hour: "numeric", minute: "2-digit", second: "2-digit" })}
+        </p>
       </header>
 
-      <main className="p-4 md:p-8 max-w-[1440px] mx-auto space-y-4 md:space-y-6">
-        {/* data-flow strip */}
-        <div className="rounded-3xl bg-white shadow-card px-6 py-4 flex items-center gap-2 text-[13px] overflow-x-auto">
-          {[["mic", "Client speaks", funnel[0].v], ["spark", "Agentic Assistant parses & recaps", funnel[1].v], ["home", "Vibe search · top 3", funnel[1].v], ["users", "Real Estate Agent verifies", funnel[2].v], ["chat", "Real Estate Agent contacts", funnel[3].v], ["key", "Closed", funnel[5].v]].map(([ic, t, v], i, a) => (
-            <div key={t as string} className="flex items-center gap-2 shrink-0">
-              <div className={`w-8 h-8 rounded-full flex items-center justify-center ${i === 1 || i === 2 ? "bg-coral-soft text-coral" : i === 3 || i === 4 ? "bg-ink text-white" : "bg-blush text-ink"}`}><Icon name={ic as string} className="w-4 h-4" /></div>
-              <div><div className="font-semibold leading-tight">{t}</div><div className="text-[11px] text-mute">{(v as number).toLocaleString()} this month</div></div>
-              {i < a.length - 1 && <div className="w-8 h-px bg-[#e9d9da] mx-1" />}
-            </div>
-          ))}
-          <div className="ml-auto shrink-0 text-[11px] text-mute flex items-center gap-3"><span className="flex items-center gap-1"><span className="w-2 h-2 rounded-full bg-coral" />Agentic Assistant suggests</span><span className="flex items-center gap-1"><span className="w-2 h-2 rounded-full bg-ink" />Real Estate Agent verifies</span></div>
+      <nav className="sticky top-0 z-30 bg-canvas/90 backdrop-blur border-b border-line">
+        <div className="mx-auto max-w-[1400px] px-4 md:px-8 flex gap-6 text-sm">
+          {[["sales", "Sales"], ["customers", "Customers"], ["market", "Market"]].map(([id, label]) => <a key={id} href={`#${id}`} className="py-3 text-stone hover:text-ink">{label}</a>)}
         </div>
+      </nav>
 
-        {/* KPIs */}
-        <div className="grid grid-cols-1 sm:grid-cols-2 lg:grid-cols-5 gap-3 md:gap-4">
-          <Kpi label="Revenue this month" value={`$${(revenueNow / 1000).toFixed(1)}k`} delta="+18% vs Oct" spark={REVENUE.slice(-8)} />
-          <Kpi label="Deals closed" value={`${21 + live.closed}`} delta="+6 vs Oct" />
-          <Kpi label="Avg. Real Estate Agent response" value={`${RESPONSE_MIN[11]} min`} delta="was 3.2 h before Pebble" spark={RESPONSE_MIN.slice(-8)} good="down" />
-          <Kpi label="Qualified → verified" value={`${142 + live.qualified} → ${97 + live.verified}`} delta={`${Math.round(((97 + live.verified) / (142 + live.qualified)) * 100)}% verified by Real Estate Agents`} />
-          <Kpi label="Deals rescued by Agentic Assistant follow-ups" value={`${7 + live.rescued}`} delta={`$${(32.4 + live.rescuedValue / 1000).toFixed(1)}k saved revenue`} accent />
-        </div>
-
-        <MarketIntel />
-
-        <div className="grid grid-cols-1 lg:grid-cols-3 gap-4 md:gap-6">
-          <section className="lg:col-span-2 rounded-3xl bg-white shadow-card p-5 md:p-6">
-            <div className="flex flex-wrap items-baseline justify-between gap-2">
-              <div><h2 className="font-semibold text-[16px]">Revenue & forecast</h2><p className="text-[12px] text-mute">Commission revenue, last 12 months · dashed = Agentic Assistant forecast (trend × seasonality)</p></div>
-              <div className="text-[12px] text-mute">Q1 forecast <b className="text-ink">${((fc[0] + fc[1] + fc[2]) / 1000).toFixed(0)}k</b></div>
-            </div>
-            <div className="h-[220px] md:h-[280px] mt-3">
-              <ResponsiveContainer>
-                <ComposedChart data={revData} margin={{ left: 0, right: 8, top: 10 }}>
-                  <defs><linearGradient id="rv" x1="0" x2="0" y1="0" y2="1"><stop offset="0" stopColor="#E5322D" stopOpacity={0.22} /><stop offset="1" stopColor="#E5322D" stopOpacity={0} /></linearGradient></defs>
-                  <CartesianGrid vertical={false} stroke="#f2e8e8" />
-                  <XAxis dataKey="m" tickLine={false} axisLine={false} tick={{ fontSize: 12, fill: "#8A8285" }} />
-                  <YAxis tickLine={false} axisLine={false} tick={{ fontSize: 12, fill: "#8A8285" }} tickFormatter={(v) => `$${v / 1000}k`} width={52} />
-                  <Tooltip formatter={(v) => `$${(Number(v) / 1000).toFixed(1)}k`} contentStyle={{ borderRadius: 12, border: "none", boxShadow: "0 8px 24px rgba(60,20,25,.12)" }} />
-                  <Area dataKey="hi" stroke="none" fill="#F6E4E5" isAnimationActive={false} />
-                  <Area dataKey="lo" stroke="none" fill="#fff" isAnimationActive={false} />
-                  <Area dataKey="actual" stroke="#E5322D" strokeWidth={2.5} fill="url(#rv)" dot={false} isAnimationActive={false} />
-                  <Line dataKey="forecast" stroke="#1D1A1C" strokeWidth={2} strokeDasharray="6 5" dot={{ r: 4, fill: "#fff", strokeWidth: 2, strokeDasharray: "0" }} isAnimationActive={false} />
-                </ComposedChart>
-              </ResponsiveContainer>
-            </div>
-          </section>
-
-          <section className="rounded-3xl bg-white shadow-card p-5 md:p-6">
-            <h2 className="font-semibold text-[16px]">Pipeline funnel</h2>
-            <p className="text-[12px] text-mute">This month, all Real Estate Agents</p>
-            <div className="mt-4 space-y-2.5">
-              {funnel.map((f, i) => (
-                <div key={f.s}>
-                  <div className="flex justify-between text-[12px]"><span>{f.s}</span><span className="font-semibold">{f.v}</span></div>
-                  <div className="h-2.5 mt-1 rounded-full bg-[#f6eded] overflow-hidden"><div className="h-full rounded-full" style={{ width: `${(f.v / funnel[0].v) * 100}%`, background: i < 2 ? "#F08C88" : i < 5 ? "#E5322D" : "#1D1A1C" }} /></div>
-                </div>
-              ))}
-            </div>
-            <div className="mt-4 text-[12px] text-mute">Request → close: <b className="text-ink">{((funnel[5].v / funnel[0].v) * 100).toFixed(1)}%</b> (industry avg. ~2%)</div>
-          </section>
-        </div>
-
-        <div className="grid grid-cols-1 lg:grid-cols-3 gap-4 md:gap-6">
-          <section className="lg:col-span-2 rounded-3xl bg-white shadow-card p-5 md:p-6 min-w-0">
-            <div className="flex flex-wrap items-center gap-x-2 gap-y-1"><Icon name="spark" className="w-5 h-5 text-coral" /><h2 className="font-semibold text-[16px]">Agentic Assistant strategy suggestions</h2><span className="text-[12px] text-mute">— you decide{byGemini ? " · written by Gemini from this month\u2019s numbers" : ""}</span></div>
-            <div className="mt-4 grid grid-cols-1 sm:grid-cols-3 gap-3">
-              {strategies.filter((s) => !dismissed.includes(s.id)).map((s) => {
-                const ok = approved.includes(s.id);
-                return (
-                  <div key={s.id} className={`rounded-2xl p-4 flex flex-col ${ok ? "bg-[#EDF7F1]" : "bg-blush"}`}>
-                    <div className="font-semibold text-[14px] leading-snug">{s.title}</div>
-                    <p className="text-[12px] text-[#5b5357] mt-1.5 leading-snug flex-1">{s.why}</p>
-                    <div className="text-[12px] font-semibold text-coral mt-2">{s.impact}</div>
-                    {ok ? (
-                      <div className="mt-3 text-[12px] font-semibold text-[#1F7A4C] flex items-center gap-1"><Icon name="check" className="w-4 h-4" />Approved by you · assigned</div>
-                    ) : (
-                      <div className="mt-3 flex gap-2">
-                        <button onClick={() => update((st) => void st.approvedStrategies.push(s.id))} className="flex-1 h-9 rounded-full bg-ink text-white text-[12px] font-semibold">Approve</button>
-                        <button onClick={() => update((st) => void st.dismissedStrategies.push(s.id))} className="h-9 px-3 rounded-full border border-[#e6d6d7] text-[12px] text-mute">Dismiss</button>
-                      </div>
-                    )}
-                  </div>
-                );
-              })}
-            </div>
-            <h3 className="font-semibold text-[14px] mt-6 mb-2">Top Real Estate Agents</h3>
-            <div className="overflow-x-auto -mx-1 px-1">
-            <table className="w-full min-w-[540px] text-[13px]">
-              <thead><tr className="text-left text-mute text-[11px]"><th className="font-medium py-1.5">Real Estate Agent</th><th className="font-medium">Closed</th><th className="font-medium">Revenue</th><th className="font-medium">Avg. response</th><th className="font-medium">Verification rate</th></tr></thead>
-              <tbody>
-                {agentRows.map((r) => {
-                  const a = agentById(r.id);
-                  return (
-                    <tr key={r.id} className="border-t border-[#f3eaea]">
-                      <td className="py-2"><div className="flex items-center gap-2"><Avatar initials={a.initials} color={a.color} size={26} /><span className="font-medium">{a.name}</span></div></td>
-                      <td>{r.closed + (r.id === "maya" ? live.closed - 2 > 0 ? live.closed - 2 : 0 : 0)}</td>
-                      <td>${r.rev.toLocaleString()}</td>
-                      <td>{r.resp} min</td>
-                      <td><div className="flex items-center gap-2"><div className="w-20 h-1.5 rounded-full bg-[#f3e9e9]"><div className="h-full rounded-full bg-coral" style={{ width: `${r.ver}%` }} /></div>{r.ver}%</div></td>
-                    </tr>
-                  );
-                })}
-              </tbody>
-            </table>
-            </div>
-          </section>
-
-          <section className="rounded-3xl bg-white shadow-card p-5 md:p-6">
-            <h2 className="font-semibold text-[16px] flex items-center gap-2">Live activity<span className="w-2 h-2 rounded-full bg-coral animate-pulse" /></h2>
-            <p className="text-[12px] text-mute">Every request, Agentic Assistant step and Real Estate Agent decision</p>
-            <div className="mt-4 space-y-3">
-              {events.map((e, i) => (
-                <div key={i} className="flex gap-3 items-start">
-                  <span className={`mt-1 w-2.5 h-2.5 rounded-full shrink-0 ${e.actor === "ai" ? "bg-coral" : e.actor === "agent" ? "bg-ink" : e.actor === "client" ? "bg-[#F08C88]" : "bg-[#C9B9BB]"}`} />
-                  <div className="flex-1 min-w-0"><div className="text-[13px] leading-tight"><b className="font-semibold">{e.who}</b> · {e.label}</div><div className="text-[11px] text-mute">{(() => { const m = Math.max(0, Math.round((now() - e.at) / 60000)); return m < 1 ? "just now" : m < 60 ? `${m} min ago` : m < 1440 ? `${Math.round(m / 60)} h ago` : `${Math.round(m / 1440)} d ago`; })()} · {e.actor === "ai" ? "Agentic Assistant" : e.actor === "agent" ? "Real Estate Agent" : e.actor === "client" ? "Client" : "Pebble"}</div></div>
-                </div>
-              ))}
-            </div>
-            <div className="mt-5 h-[90px]">
-              <div className="text-[11px] text-mute mb-1">Real Estate Agent response time (min) · 12 months</div>
-              <ResponsiveContainer>
-                <BarChart data={RESPONSE_MIN.map((v, i) => ({ m: MONTHS[i], v }))}>
-                  <Bar dataKey="v" fill="#E5322D" radius={[4, 4, 0, 0]} isAnimationActive={false} />
-                  <Tooltip cursor={{ fill: "#fbf0f0" }} formatter={(v) => `${v} min`} />
-                </BarChart>
-              </ResponsiveContainer>
-            </div>
-          </section>
-        </div>
-        <p className="text-center text-[11px] text-mute pb-4">Revenue, pipeline and agent figures are demo data; listings, market numbers and 3D tours are live CoStar data (Houston & Los Angeles). Live leads from the customer and Real Estate Agent apps update this page in real time.</p>
+      <main className="mx-auto max-w-[1400px] px-4 md:px-8 pb-16">
+        <Sales snap={snap} approved={approved} dismissed={dismissed} />
+        <Customers snap={snap} />
+        <section id="market" className="scroll-mt-16 pt-10">
+          <SectionHead title="Market" sub={`CoStar data for ${city}, and what it means for us`} />
+          <div className="space-y-4">
+            <CostarMarket city={city} />
+            <MarketRecap city={city} />
+          </div>
+        </section>
       </main>
     </div>
   );
 }
 
-function Kpi({ label, value, delta, spark, accent, good }: { label: string; value: string; delta: string; spark?: number[]; accent?: boolean; good?: "down" }) {
+/* ---------------- building blocks ---------------- */
+
+function SectionHead({ title, sub }: { title: string; sub: string }) {
   return (
-    <div className={`rounded-3xl p-5 shadow-card ${accent ? "bg-ink text-white sm:col-span-2 lg:col-span-1" : "bg-white"}`}>
-      <div className={`text-[12px] ${accent ? "text-white/70" : "text-mute"}`}>{label}</div>
-      <div className="text-[28px] font-bold tracking-tight mt-1">{value}</div>
-      <div className="flex items-end justify-between gap-2">
-        <div className={`text-[12px] font-medium ${accent ? "text-[#FF8A85]" : "text-[#1F7A4C]"}`}>{delta}</div>
-        {spark && (
-          <div className="w-20 h-8">
-            <ResponsiveContainer><AreaChart data={spark.map((v) => ({ v }))}><Area dataKey="v" stroke={good === "down" ? "#1F7A4C" : "#E5322D"} fill={good === "down" ? "#E4F4EA" : "#FCE3E1"} strokeWidth={2} isAnimationActive={false} /></AreaChart></ResponsiveContainer>
-          </div>
-        )}
+    <div className="mb-4">
+      <h2 className="font-display text-3xl">{title}</h2>
+      <p className="text-stone">{sub}</p>
+    </div>
+  );
+}
+function Panel({ title, sub, right, children, className = "" }: { title: string; sub?: string; right?: ReactNode; children: ReactNode; className?: string }) {
+  return (
+    <section className={`rounded-3xl bg-card shadow-card p-5 md:p-6 min-w-0 ${className}`}>
+      <div className="flex flex-wrap items-baseline justify-between gap-2">
+        <div className="min-w-0"><h3 className="font-display text-xl">{title}</h3>{sub && <p className="text-sm text-stone">{sub}</p>}</div>
+        {right}
       </div>
+      <div className="mt-4">{children}</div>
+    </section>
+  );
+}
+/** Change vs the same point last month. `lowerIsBetter` flips the colour. */
+function Delta({ cur, prev, label, lowerIsBetter = false, money = false }: { cur: number | null; prev: number | null; label: string; lowerIsBetter?: boolean; money?: boolean }) {
+  if (cur == null || prev == null) return <span className="text-xs text-stone">No data for {label} yet</span>;
+  const c = change(cur, prev);
+  const diff = cur - prev;
+  const good = lowerIsBetter ? diff < 0 : diff > 0;
+  const text = c == null ? (money ? fmtMoney(diff) : diff) : `${c > 0 ? "+" : ""}${c}%`;
+  return <span className={`text-xs ${diff === 0 ? "text-stone" : good ? "text-positive" : "text-negative"}`}>{diff === 0 ? "Same as" : text + " vs"} {label}</span>;
+}
+function Kpi({ label, value, children }: { label: string; value: string; children: ReactNode }) {
+  return (
+    <article className="rounded-3xl bg-card p-5 shadow-card">
+      <p className="text-sm text-stone">{label}</p>
+      <p className="mt-3 font-display text-4xl leading-none tabular-nums">{value}</p>
+      <div className="mt-3 flex flex-col gap-0.5">{children}</div>
+    </article>
+  );
+}
+function Bars({ rows, unit = "" }: { rows: { label: string; value: number; note?: string }[]; unit?: string }) {
+  const max = Math.max(1, ...rows.map((r) => r.value));
+  return (
+    <ul className="space-y-2.5">
+      {rows.map((r) => (
+        <li key={r.label}>
+          <div className="flex justify-between gap-3 text-sm"><span className="truncate">{r.label}</span><span className="tabular-nums text-stone shrink-0">{r.value}{unit}{r.note ? ` · ${r.note}` : ""}</span></div>
+          <div className="mt-1 h-2 rounded-full bg-sand"><div className="h-2 rounded-full bg-sage transition-all duration-700" style={{ width: `${(r.value / max) * 100}%` }} /></div>
+        </li>
+      ))}
+      {!rows.length && <li className="text-sm text-stone">Nothing yet.</li>}
+    </ul>
+  );
+}
+
+/* ---------------- Sales ---------------- */
+
+function Sales({ snap, approved, dismissed }: { snap: Snapshot; approved: string[]; dismissed: string[] }) {
+  const s = snap.sales;
+  const last = `${snap.prevLabel} 1–${snap.dayOfMonth}`;
+  return (
+    <section id="sales" className="scroll-mt-16 pt-8">
+      <SectionHead title="Sales" sub={`${snap.monthLabel} so far, compared with the same days last month`} />
+      <div className="grid grid-cols-1 sm:grid-cols-2 xl:grid-cols-4 gap-3 md:gap-4">
+        <Kpi label="Revenue this month" value={fmtMoney(s.revenue)}>
+          <Delta cur={s.revenue} prev={s.revenuePrev} label={last} />
+          <span className="text-xs text-stone">On pace for {fmtMoney(s.pace)} · {snap.prevLabel} total {fmtMoney(s.monthTotalPrev)}</span>
+        </Kpi>
+        <Kpi label="Deals closed" value={String(s.deals)}>
+          <Delta cur={s.deals} prev={s.dealsPrev} label={last} />
+          <span className="text-xs text-stone">{s.dealsPrev} by this point last month</span>
+        </Kpi>
+        <Kpi label="Avg. Real Estate Agent response" value={fmtDur(s.responseMs)}>
+          <Delta cur={s.responseMs} prev={s.responsePrevMs} label={last} lowerIsBetter />
+          <span className="text-xs text-stone">Time to the first reply on a new lead</span>
+        </Kpi>
+        <Kpi label="Deals saved by follow-ups" value={String(s.saved)}>
+          <Delta cur={s.saved} prev={s.savedPrev} label={last} />
+          <span className="text-xs text-stone">{fmtMoney(s.savedValue)} in fees after an Agentic Assistant follow-up</span>
+        </Kpi>
+      </div>
+
+      <div className="mt-4 grid grid-cols-1 xl:grid-cols-3 gap-4">
+        <RevenueChart snap={snap} />
+        <LiveFeed snap={snap} />
+      </div>
+
+      <AgentTable snap={snap} />
+      <Strategies snap={snap} approved={approved} dismissed={dismissed} />
+    </section>
+  );
+}
+
+function RevenueChart({ snap }: { snap: Snapshot }) {
+  const [how, setHow] = useState(false);
+  const data = snap.sales.months.map((m) => ({ ...m, band: m.band ?? null }));
+  const next = snap.sales.months.filter((m) => m.key.startsWith("f"));
+  return (
+    <Panel className="xl:col-span-2" title="Revenue and 3-month forecast" sub="Brokerage fees per month · dashed line is the forecast"
+      right={<div className="text-sm text-stone">Next 3 months <span className="font-display text-lg text-ink">{fmtMoney(next.reduce((a, m) => a + (m.forecast || 0), 0))}</span></div>}>
+      <div className="h-[260px] md:h-[300px]">
+        <ResponsiveContainer>
+          <ComposedChart data={data} margin={{ left: 0, right: 8, top: 10 }}>
+            <CartesianGrid vertical={false} stroke="#EDF2F9" />
+            <XAxis dataKey="label" tickLine={false} axisLine={false} tick={{ fontSize: 12, fill: "#66758C" }} />
+            <YAxis tickLine={false} axisLine={false} tick={{ fontSize: 12, fill: "#66758C" }} tickFormatter={(v) => fmtMoney(Number(v))} width={60} />
+            <Tooltip
+              contentStyle={{ borderRadius: 16, border: "none", boxShadow: "0 10px 30px rgba(22,50,90,.12)", fontSize: 13 }}
+              formatter={(v, name) => {
+                if (Array.isArray(v)) return [`${fmtMoney(Number(v[0]))} – ${fmtMoney(Number(v[1]))}`, "Likely range"];
+                return [fmtMoney(Number(v)), name === "revenue" ? "Revenue" : name === "soFar" ? "So far" : "Forecast"];
+              }}
+            />
+            <Area dataKey="band" stroke="none" fill="#E9EFF8" isAnimationActive={false} connectNulls />
+            <Bar dataKey="revenue" fill="#3478F0" radius={[6, 6, 0, 0]} maxBarSize={34} isAnimationActive={false} />
+            <Bar dataKey="soFar" fill="#8FB6F5" radius={[6, 6, 0, 0]} maxBarSize={34} isAnimationActive={false} />
+            <Line dataKey="forecast" stroke="#16325A" strokeWidth={2.5} strokeDasharray="6 6" dot={{ r: 4, fill: "#16325A", strokeWidth: 0 }} isAnimationActive={false} connectNulls />
+          </ComposedChart>
+        </ResponsiveContainer>
+      </div>
+      <div className="mt-2 flex flex-wrap items-center gap-x-4 gap-y-1 text-xs text-stone">
+        <span className="flex items-center gap-1.5"><span className="w-3 h-3 rounded bg-sage" />Closed fees</span>
+        <span className="flex items-center gap-1.5"><span className="w-3 h-3 rounded bg-[#8FB6F5]" />{snap.monthLabel} so far</span>
+        <span className="flex items-center gap-1.5"><span className="w-4 border-t-2 border-dashed border-clay" />Forecast</span>
+        <span className="flex items-center gap-1.5"><span className="w-3 h-3 rounded bg-clay-soft" />Likely range</span>
+        <button onClick={() => setHow(!how)} className="ml-auto text-sage">How these are counted</button>
+      </div>
+      {how && <p className="mt-2 text-sm text-stone max-w-3xl">A rental counts one month of rent as our fee, a sale counts 2.5% of the price, and only closed deals count. {snap.sales.forecastMethod}</p>}
+    </Panel>
+  );
+}
+
+function LiveFeed({ snap }: { snap: Snapshot }) {
+  const dot = { ai: "bg-violet", agent: "bg-navy", client: "bg-sage", system: "bg-line" } as const;
+  return (
+    <Panel title="Live activity" sub="Requests, replies, follow-ups and closed deals" right={<span className="w-2 h-2 rounded-full bg-sage animate-pulse" />}>
+      <ul className="space-y-3 max-h-[330px] overflow-y-auto no-scrollbar">
+        {snap.sales.feed.map((e, i) => (
+          <li key={`${e.at}-${i}`} className={`flex gap-3 items-start ${i === 0 ? "rise" : ""}`}>
+            <span className={`mt-1.5 w-2.5 h-2.5 rounded-full shrink-0 ${dot[e.actor]}`} />
+            <div className="min-w-0">
+              <p className="text-sm leading-snug"><span className="text-ink">{e.who}</span> <span className="text-stone">{e.text}</span></p>
+              <p className="text-xs text-stone">{ago(e.at, snap.now)} · {e.actor === "ai" ? "Agentic Assistant" : e.actor === "agent" ? "Real Estate Agent" : e.actor === "client" ? "Client" : "Pebble"}</p>
+            </div>
+          </li>
+        ))}
+      </ul>
+    </Panel>
+  );
+}
+
+function AgentTable({ snap }: { snap: Snapshot }) {
+  const rows = snap.sales.agents;
+  const best = Math.max(1, ...rows.map((r) => r.revenue));
+  return (
+    <Panel className="mt-4" title="Real Estate Agents" sub={`${snap.monthLabel} so far · close rate covers the last 90 days`}>
+      <div className="overflow-x-auto -mx-1 px-1">
+        <table className="w-full min-w-[860px] text-sm">
+          <thead className="text-stone text-xs"><tr className="text-left">{["Agent", "New leads", "Avg. first reply", "Verified", "Closed", "Revenue", "Saved by follow-ups", "Open / quiet", "Close rate"].map((h) => <th key={h} className="py-2 pr-4 font-normal">{h}</th>)}</tr></thead>
+          <tbody>
+            {rows.map((r) => {
+              const c = change(r.revenue, r.revenuePrev);
+              const slow = r.avgResponseMs != null && r.avgResponseMs > 5 * 60_000;
+              return (
+                <tr key={r.id} className="border-t border-line">
+                  <td className="py-3 pr-4"><div className="flex items-center gap-2"><Avatar initials={r.initials} color={r.color} size={28} /><span>{r.name}</span></div></td>
+                  <td className="pr-4 tabular-nums">{r.leads}</td>
+                  <td className={`pr-4 tabular-nums ${slow ? "text-warning" : ""}`}>{fmtDur(r.avgResponseMs)}</td>
+                  <td className="pr-4 tabular-nums">{r.verifiedRate}%</td>
+                  <td className="pr-4 tabular-nums">{r.closed}</td>
+                  <td className="pr-4">
+                    <div className="flex items-center gap-2"><span className="tabular-nums w-16">{fmtMoney(r.revenue)}</span><div className="w-20 h-1.5 rounded-full bg-sand"><div className="h-full rounded-full bg-sage" style={{ width: `${(r.revenue / best) * 100}%` }} /></div></div>
+                    {c != null && <span className={`text-xs ${c >= 0 ? "text-positive" : "text-negative"}`}>{c > 0 ? "+" : ""}{c}% vs last month</span>}
+                  </td>
+                  <td className="pr-4 tabular-nums">{r.saved}</td>
+                  <td className="pr-4 tabular-nums">{r.active} / <span className={r.quiet ? "text-warning" : ""}>{r.quiet}</span></td>
+                  <td className="pr-4 tabular-nums">{r.closeRate90}%</td>
+                </tr>
+              );
+            })}
+          </tbody>
+        </table>
+      </div>
+    </Panel>
+  );
+}
+
+/* ---------------- Strategies (the broker's assistant) ---------------- */
+
+function Strategies({ snap, approved, dismissed }: { snap: Snapshot; approved: string[]; dismissed: string[] }) {
+  const [list, setList] = useState<Strategy[] | null>(null);
+  const [facts, setFacts] = useState<Fact[]>([]);
+  const [asOf, setAsOf] = useState(0);
+  const [thinking, setThinking] = useState(false);
+  const [open, setOpen] = useState<Strategy | null>(null);
+  const snapRef = useRef(snap);
+  snapRef.current = snap;
+
+  // the assistant thinks on open, when the city changes, and when asked; it does not rewrite itself every 5 seconds
+  const think = async () => {
+    const cur = snapRef.current;
+    const f = factsOf(cur.signals);
+    setThinking(true);
+    setFacts(f);
+    const agents = cur.sales.agents.map((a) => ({ name: a.name, leads: a.leads, firstReply: fmtDur(a.avgResponseMs), closed: a.closed, revenue: fmtMoney(a.revenue), quiet: a.quiet, closeRate90: `${a.closeRate90}%` }));
+    const ai = await aiStrategy(cur.city, f, agents);
+    setList(ai && ai.length ? ai : localStrategies(cur.signals));
+    setAsOf(cur.now);
+    setThinking(false);
+  };
+  useEffect(() => { void think(); }, [snap.city]); // eslint-disable-line react-hooks/exhaustive-deps
+
+  const shown = (list || []).filter((s) => !dismissed.includes(s.id));
+  const byGemini = shown.some((s) => s.byGemini);
+  return (
+    <Panel className="mt-4" title="Strategy suggestions" sub={thinking ? "Going through the numbers…" : `From your assistant${byGemini ? " (Gemini)" : ""} · based on the numbers at ${new Date(asOf || snap.now).toLocaleTimeString("en-US", { hour: "numeric", minute: "2-digit" })} · you decide`}
+      right={<button onClick={() => void think()} disabled={thinking} className="text-sm text-sage disabled:opacity-50">{thinking ? "Thinking…" : "Think again"}</button>}>
+      {thinking && !list ? (
+        <div className="grid grid-cols-1 md:grid-cols-3 gap-3">{[0, 1, 2].map((i) => <div key={i} className="h-56 rounded-3xl shimmer" />)}</div>
+      ) : (
+        <div className={`grid grid-cols-1 md:grid-cols-3 gap-3 ${thinking ? "opacity-60" : ""}`}>
+          {shown.map((s) => {
+            const ok = approved.includes(s.id);
+            return (
+              <article key={s.id} className={`rounded-3xl p-5 flex flex-col ${ok ? "bg-sage-soft" : "bg-canvas"}`}>
+                <h4 className="font-display text-lg leading-snug">{s.title}</h4>
+                <p className="mt-2 text-sm leading-relaxed text-stone flex-1">{s.summary}</p>
+                <p className="mt-3 text-sm text-clay">{s.impact}</p>
+                <SuccessMeter value={s.successRate} />
+                <div className="mt-4 flex items-center gap-2">
+                  {ok ? (
+                    <span className="text-sm text-sage flex items-center gap-1"><Icon name="check" className="w-4 h-4" />Approved</span>
+                  ) : (
+                    <>
+                      <button onClick={() => update((st) => void st.approvedStrategies.push(s.id))} className="h-9 px-4 rounded-full bg-sage text-white text-sm">Approve</button>
+                      <button onClick={() => update((st) => void st.dismissedStrategies.push(s.id))} className="h-9 px-3 rounded-full text-sm text-stone">Dismiss</button>
+                    </>
+                  )}
+                  <button onClick={() => setOpen(s)} className="ml-auto text-sm text-sage">See more</button>
+                </div>
+              </article>
+            );
+          })}
+          {!shown.length && <p className="text-sm text-stone">All suggestions handled. Ask the assistant to think again for new ones.</p>}
+        </div>
+      )}
+      {open && <Explain s={open} facts={facts} onClose={() => setOpen(null)} />}
+    </Panel>
+  );
+}
+
+function SuccessMeter({ value }: { value: number }) {
+  return (
+    <div className="mt-3">
+      <div className="flex justify-between text-xs text-stone"><span>Likely to work</span><span className="tabular-nums text-ink">{value}%</span></div>
+      <div className="mt-1 h-1.5 rounded-full bg-sand"><div className="h-full rounded-full bg-sage" style={{ width: `${value}%` }} /></div>
+    </div>
+  );
+}
+
+function Explain({ s, facts, onClose }: { s: Strategy; facts: Fact[]; onClose: () => void }) {
+  const used = s.evidence.map((id) => facts.find((f) => f.id === id)).filter((f): f is Fact => Boolean(f));
+  return (
+    <div className="fixed inset-0 z-50 bg-black/30 flex items-end md:items-center justify-center p-0 md:p-6 fadein" onClick={onClose}>
+      <div className="w-full max-w-2xl max-h-[90vh] overflow-y-auto rounded-t-[32px] md:rounded-[32px] bg-card p-6 md:p-8 shadow-card rise" onClick={(e) => e.stopPropagation()}>
+        <div className="flex items-start gap-3">
+          <div className="min-w-0 flex-1">
+            <p className="text-sm text-sage">{s.byGemini ? "Your assistant · Gemini" : "Your assistant"}</p>
+            <h3 className="mt-1 font-display text-2xl leading-snug">{s.title}</h3>
+          </div>
+          <button onClick={onClose} aria-label="Close" className="w-9 h-9 rounded-full bg-sand grid place-items-center shrink-0"><Icon name="x" className="w-4 h-4" /></button>
+        </div>
+
+        <h4 className="mt-6 font-medium">How I got here</h4>
+        <ol className="mt-2 space-y-3">
+          {s.thinking.map((t, i) => (
+            <li key={i} className="flex gap-3"><span className="w-6 h-6 rounded-full bg-sage-soft text-sage-ink text-xs grid place-items-center shrink-0">{i + 1}</span><p className="text-[15px] leading-relaxed">{t}</p></li>
+          ))}
+        </ol>
+
+        <h4 className="mt-6 font-medium">The numbers I used</h4>
+        <ul className="mt-2 grid grid-cols-1 sm:grid-cols-2 gap-2">
+          {used.map((f) => (
+            <li key={f.id} className="rounded-2xl bg-canvas px-4 py-3">
+              <p className="text-xs text-stone">{f.label}</p>
+              <p className="text-sm mt-0.5">{f.value}</p>
+              <p className={`text-[11px] mt-1 ${f.source === "CoStar" ? "text-[#1F4FA8]" : "text-sage"}`}>{f.source}</p>
+            </li>
+          ))}
+        </ul>
+
+        {s.plan.length > 0 && (
+          <>
+            <h4 className="mt-6 font-medium">What I'd do</h4>
+            <ul className="mt-2 space-y-1.5">{s.plan.map((p) => <li key={p} className="flex gap-2 text-[15px]"><Icon name="check" className="w-4 h-4 text-sage mt-1 shrink-0" />{p}</li>)}</ul>
+          </>
+        )}
+
+        <div className="mt-6 rounded-3xl bg-sage-soft p-5">
+          <h4 className="font-medium text-sage-ink">What to expect</h4>
+          <p className="mt-1 text-[15px]">{s.expected}</p>
+          <SuccessMeter value={s.successRate} />
+          <p className="mt-3 text-sm text-stone">{s.confidence}</p>
+        </div>
+      </div>
+    </div>
+  );
+}
+
+/* ---------------- Customers ---------------- */
+
+function Customers({ snap }: { snap: Snapshot }) {
+  const c = snap.customers;
+  const [pick, setPick] = useState<string | null>(null);
+  const prop = c.properties.find((p) => p.id === pick) || c.properties[0];
+  return (
+    <section id="customers" className="scroll-mt-16 pt-10">
+      <SectionHead title="Customers" sub="What shoppers search for, where they look and who they are · last 30 days vs the 30 before" />
+      <div className="grid grid-cols-2 lg:grid-cols-5 gap-3 md:gap-4">
+        <Kpi label="Active shoppers" value={c.shoppers.toLocaleString()}><Delta cur={c.shoppers} prev={c.shoppersPrev} label="previous 30 days" /></Kpi>
+        <Kpi label="Searches" value={c.searches.toLocaleString()}><Delta cur={c.searches} prev={c.searchesPrev} label="previous 30 days" /></Kpi>
+        <Kpi label="Avg. time on a listing" value={fmtDur(c.avgViewMs)}><Delta cur={c.avgViewMs} prev={c.avgViewPrevMs} label="previous 30 days" /></Kpi>
+        <Kpi label="Avg. shopper age" value={c.avgAge ? String(c.avgAge) : "—"}><span className="text-xs text-stone">From shoppers who shared it</span></Kpi>
+        <Kpi label="Likely to buy or rent soon" value={String(c.highIntent)}><span className="text-xs text-stone">Long looks, repeat visits, active lead</span></Kpi>
+      </div>
+
+      <div className="mt-4 grid grid-cols-1 lg:grid-cols-3 gap-4">
+        <Panel title="What they search for" sub="Tags in shoppers' requests">
+          <Bars rows={c.tags.slice(0, 8).map((t) => ({ label: t.tag, value: t.share, note: `${t.count} searches` }))} unit="%" />
+        </Panel>
+        <Panel title="Where they're looking" sub="Neighborhoods by shoppers · with CoStar prices">
+          <ul className="space-y-2.5">
+            {c.areas.slice(0, 7).map((a) => (
+              <li key={a.name} className="flex items-center gap-3">
+                <div className="min-w-0 flex-1">
+                  <div className="flex justify-between text-sm"><span className="truncate">{a.name}</span><span className="text-stone tabular-nums">{a.shoppers} shoppers</span></div>
+                  <div className="text-xs text-stone">{a.views} views · avg {fmtDur(a.avgMs)} · CoStar {a.ppsf ? `$${a.ppsf}/sq ft` : "—"}{a.dom != null ? ` · ${a.dom} days on market` : ""}{a.priceCut != null ? ` · ${a.priceCut}% cut price` : ""}</div>
+                </div>
+              </li>
+            ))}
+          </ul>
+        </Panel>
+        <Panel title="Who's looking" sub="Age and where they live now">
+          <Bars rows={c.ages.map((a) => ({ label: a.band, value: a.count }))} />
+          <div className="mt-4 flex flex-wrap gap-1.5">{c.from.map((f) => <span key={f.name} className="px-2.5 py-1 rounded-full bg-sand text-xs">{f.name} · {f.count}</span>)}</div>
+        </Panel>
+      </div>
+
+      <HotShoppers snap={snap} />
+
+      <Panel className="mt-4" title="Property insights" sub="For owners: how shoppers engage with each listing (last 30 days)">
+        <div className="grid grid-cols-1 lg:grid-cols-3 gap-4">
+          <ul className="space-y-1.5 lg:max-h-[520px] overflow-y-auto no-scrollbar">
+            {c.properties.map((p) => (
+              <li key={p.id}>
+                <button onClick={() => setPick(p.id)} className={`w-full text-left rounded-2xl px-4 py-3 border transition ${prop?.id === p.id ? "border-sage bg-sage-soft/60" : "border-line hover:bg-canvas"}`}>
+                  <div className="flex justify-between gap-2"><span className="text-sm truncate">{p.title}</span><span className="text-xs text-stone shrink-0">{p.views} views</span></div>
+                  <div className="text-xs text-stone">{p.neighborhood} · {p.price} · avg {fmtDur(p.avgMs)}</div>
+                </button>
+              </li>
+            ))}
+          </ul>
+          {prop && <PropertyCard p={prop} />}
+        </div>
+      </Panel>
+
+      <div className="mt-4 rounded-3xl bg-card shadow-card px-5 py-4 flex flex-wrap items-center gap-x-6 gap-y-2 text-sm">
+        <span className="flex items-center gap-2 text-sage"><span className="w-2 h-2 rounded-full bg-sage animate-pulse" />Right now</span>
+        {c.justNow.slice(0, 4).map((v, i) => <span key={`${v.at}-${i}`} className="text-stone"><span className="text-ink">{v.who}</span> viewed {v.title} · {fmtDur(v.ms)} · {ago(v.at, snap.now)}</span>)}
+      </div>
+    </section>
+  );
+}
+
+function HotShoppers({ snap }: { snap: Snapshot }) {
+  const rows = snap.customers.hot;
+  return (
+    <Panel className="mt-4" title="Most likely to buy or rent" sub="Ranked by time on listings, repeat visits, searches and lead stage">
+      <div className="overflow-x-auto -mx-1 px-1">
+        <table className="w-full min-w-[900px] text-sm">
+          <thead className="text-stone text-xs"><tr className="text-left">{["Shopper", "Email", "Age", "Lives in", "Likelihood", "Homes they keep looking at", "Wants", "Last seen"].map((h) => <th key={h} className="py-2 pr-4 font-normal">{h}</th>)}</tr></thead>
+          <tbody>
+            {rows.map((s) => <ShopperRow key={s.id} s={s} at={snap.now} />)}
+            {!rows.length && <tr><td colSpan={8} className="py-4 text-stone">No high-likelihood shoppers in this market yet.</td></tr>}
+          </tbody>
+        </table>
+      </div>
+    </Panel>
+  );
+}
+function ShopperRow({ s, at }: { s: Shopper; at: number }) {
+  return (
+    <tr className="border-t border-line align-top">
+      <td className="py-3 pr-4"><div>{s.name}</div><div className="text-xs text-stone">{s.stage === "browsing" ? "Browsing" : `Lead · ${s.stage}`}{s.source === "app" ? " · from the app" : ""}</div></td>
+      <td className="py-3 pr-4">{s.email ? <a href={`mailto:${s.email}`} className="text-sage hover:underline">{s.email}</a> : <span className="text-xs text-stone">Not shared (no contact consent)</span>}</td>
+      <td className="py-3 pr-4 tabular-nums">{s.age ?? "—"}</td>
+      <td className="py-3 pr-4">{s.location || "—"}</td>
+      <td className="py-3 pr-4">
+        <div className="flex items-center gap-2"><div className="w-16 h-1.5 rounded-full bg-sand"><div className="h-full rounded-full bg-clay" style={{ width: `${s.score}%` }} /></div><span className="tabular-nums">{s.score}</span></div>
+        <div className="text-xs text-stone mt-1 max-w-[220px]">{s.reasons.slice(0, 2).join(" · ")}</div>
+      </td>
+      <td className="py-3 pr-4"><ul className="space-y-0.5">{s.homes.slice(0, 3).map((h) => <li key={h.id} className="text-xs"><span className="text-ink">{h.title}</span> <span className="text-stone">· {h.looks}× · {fmtDur(h.ms)}</span></li>)}</ul></td>
+      <td className="py-3 pr-4"><div className="flex flex-wrap gap-1">{s.tags.map((t) => <span key={t} className="px-2 py-0.5 rounded-full bg-sage-soft text-sage-ink text-xs">{t}</span>)}</div></td>
+      <td className="py-3 pr-4 text-xs text-stone whitespace-nowrap">{ago(s.lastSeen, at)}</td>
+    </tr>
+  );
+}
+
+function PropertyCard({ p }: { p: PropertyStats }) {
+  return (
+    <div className="lg:col-span-2 rounded-3xl bg-canvas p-5 min-w-0">
+      <h4 className="font-display text-2xl leading-snug">{p.title}</h4>
+      <p className="text-sm text-stone">{p.neighborhood} · {p.price}</p>
+      <div className="mt-4 grid grid-cols-2 sm:grid-cols-4 gap-2">
+        {[["Avg. time viewed", fmtDur(p.avgMs)], ["Views", String(p.views)], ["Different shoppers", String(p.viewers)], ["Avg. viewer age", p.avgAge ? String(p.avgAge) : "—"]].map(([l, v]) => (
+          <div key={l} className="rounded-2xl bg-card px-4 py-3"><div className="text-xs text-stone">{l}</div><div className="font-display text-2xl">{v}</div></div>
+        ))}
+      </div>
+      <div className="mt-4 grid grid-cols-1 md:grid-cols-2 gap-4">
+        <div>
+          <h5 className="text-sm font-medium">Tags it gets linked to</h5>
+          <div className="mt-2"><Bars rows={p.tags.map((t) => ({ label: t.tag, value: t.count }))} /></div>
+        </div>
+        <div>
+          <h5 className="text-sm font-medium">Viewers by age</h5>
+          <div className="mt-2"><Bars rows={p.ages.filter((a) => a.count).map((a) => ({ label: a.band, value: a.count }))} /></div>
+          <div className="mt-3 flex flex-wrap gap-1.5">{p.from.map((f) => <span key={f.name} className="px-2.5 py-1 rounded-full bg-card text-xs">{f.name} · {f.count}</span>)}</div>
+        </div>
+      </div>
+      <h5 className="mt-5 text-sm font-medium">Interested shoppers <span className="font-normal text-stone">· those who agreed to share with owners</span></h5>
+      <ul className="mt-2 space-y-2">
+        {p.interested.map((s) => (
+          <li key={s.id} className="rounded-2xl bg-card px-4 py-3">
+            <div className="flex flex-wrap items-baseline justify-between gap-2">
+              <span>{s.name}{s.age ? `, ${s.age}` : ""} <span className="text-xs text-stone">· {s.location || "—"}</span></span>
+              {s.email ? <a href={`mailto:${s.email}`} className="text-sm text-sage hover:underline">{s.email}</a> : <span className="text-xs text-stone">Email not shared</span>}
+            </div>
+            <div className="mt-1 text-xs text-stone">Also looking at: {s.homes.filter((h) => h.id !== p.id).slice(0, 3).map((h) => h.title).join(" · ") || "only this home"} · likelihood {s.score}</div>
+          </li>
+        ))}
+        {!p.interested.length && <li className="text-sm text-stone">{p.interestedHidden ? "" : "No high-likelihood shoppers on this listing yet."}</li>}
+        {p.interestedHidden > 0 && <li className="text-xs text-stone">+ {p.interestedHidden} more interested shopper{p.interestedHidden === 1 ? "" : "s"} who chose not to share their details with owners</li>}
+      </ul>
     </div>
   );
 }

@@ -4,7 +4,7 @@
  * Primary: Gemini vision via /api/ai/vibe (see app/api/ai/vibe/route.ts).
  * Offline fallback (this file): a fast on-device color + light analysis that
  * runs in a <canvas>. It estimates light, warmth, saturation and hue variety,
- * then maps them to style / material / color / ambience tags.
+ * then maps them to style (lib/styles.ts taxonomy) / material / color / ambience tags.
  */
 import type { VibeTags } from "./types";
 import { aiVibe } from "./ai";
@@ -71,11 +71,14 @@ export function tagsFromPixels(px: Uint8ClampedArray): VibeTags {
   if (warmth > 0.45 && lum < 0.75) ambience.push("cozy");
   if (sat < 0.18) ambience.push("calm");
   if (greenery > 0.2) ambience.push("leafy");
-  if (hueVariety >= 4 && sat > 0.28) { style.push("artsy"); ambience.push("creative"); }
-  if (sat < 0.15 && lum > 0.65) style.push("minimalist", "scandinavian");
-  if (lum < 0.4 && sat < 0.25) style.push("gothic");
-  if (warmth > 0.5 && sat > 0.2 && sat < 0.45) style.push("craftsman");
-  if (!style.length) style.push("contemporary");
+  // rough color/light guesses onto the lib/styles.ts taxonomy (Gemini vision does the real read)
+  if (hueVariety >= 4 && sat > 0.28) { style.push("bohemian"); ambience.push("creative"); }
+  if (sat < 0.15 && lum > 0.65) style.push(warmth > 0.4 ? "scandinavian" : "minimalist");
+  if (warmth > 0.5 && sat < 0.3 && lum > 0.45 && lum < 0.7) style.push("japandi");
+  if (lum < 0.4 && sat < 0.25) style.push("industrial");
+  if (warmth > 0.5 && sat > 0.2 && sat < 0.45 && lum < 0.5) style.push("rustic");
+  if (colors.some((c) => ["teal", "navy"].includes(c)) && lum > 0.6) style.push("coastal");
+  if (!style.length) style.push("transitional");
   if (colors.some((c) => ["walnut", "oak", "sand"].includes(c))) materials.push("wood");
   if (colors.some((c) => ["red brick", "terracotta"].includes(c))) materials.push("brick");
   if (colors.some((c) => ["warm grey", "charcoal"].includes(c))) materials.push("stone");
@@ -93,12 +96,16 @@ async function toDataUrl(src: Img, max = 768): Promise<string> {
   return c.toDataURL("image/jpeg", 0.85);
 }
 
-/** analyzePhotos(images) -> tags. Gemini vision first; on-device analysis if Gemini is unavailable. */
-export async function analyzePhotos(images: Img[]): Promise<VibeTags> {
+/** analyzePhotos(images) -> tags. Gemini vision first: it decides whether the photo is a home at all
+ *  (`subject`, `relevant`) before tagging the look. If Gemini is unavailable, the on-device color read
+ *  still runs (agent uploads use it), but it is marked subject "unknown": colors alone cannot tell a
+ *  living room from a screenshot, so callers must not treat it as a confirmed home photo.
+ *  `language` is the name of the user's language for the one-line `message` (e.g. "Spanish"). */
+export async function analyzePhotos(images: Img[], language?: string): Promise<VibeTags> {
   try {
     const urls = await Promise.all(images.slice(0, 4).map((i) => toDataUrl(i)));
-    const tags = await aiVibe(urls);
-    if (tags) return { style: tags.style || [], materials: tags.materials || [], colors: tags.colors || [], ambience: tags.ambience || [], light: tags.light ?? 0.5 };
+    const tags = await aiVibe(urls, language);
+    if (tags) return { ...tags, style: tags.style || [], materials: tags.materials || [], colors: tags.colors || [], ambience: tags.ambience || [], light: tags.light ?? 0.5 };
   } catch {
     /* fall back to on-device */
   }
@@ -114,5 +121,5 @@ export async function analyzePhotos(images: Img[]): Promise<VibeTags> {
     merged.light += t.light / images.length;
   }
   const uniq = (a: string[]) => [...new Set(a)].slice(0, 4);
-  return { style: uniq(merged.style), materials: uniq(merged.materials), colors: uniq(merged.colors), ambience: uniq(merged.ambience), light: +merged.light.toFixed(2) };
+  return { subject: "unknown", style: uniq(merged.style), materials: uniq(merged.materials), colors: uniq(merged.colors), ambience: uniq(merged.ambience), light: +merged.light.toFixed(2) };
 }

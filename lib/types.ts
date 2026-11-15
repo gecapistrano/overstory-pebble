@@ -33,6 +33,36 @@ export interface Listing {
   anchor?: string; // commute anchor name, e.g. "Downtown Houston"
   matterportId?: string; // Matterport 3D model id (CoStar media / attachments)
   costar?: CostarMeta;
+  styles?: string[]; // every design style seen (taxonomy in lib/styles.ts), strongest first
+  interior?: InteriorProfile; // AI read of the Matterport scan (scripts/scan-interiors.mjs)
+}
+
+/** One room as the vision model saw it in the Matterport scan. */
+export interface RoomVibe {
+  room: string; // e.g. "Kitchen", "Living room", "Primary bedroom"
+  sqft?: number | null;
+  ceilingFt?: number | null;
+  styles: { name: string; confidence: number }[]; // taxonomy keys, strongest first
+  materials: string[];
+  palette: string[];
+  light: number; // 0..1 natural light
+  feel: string[]; // FEELS words
+  note: string; // one sentence of evidence, e.g. "white shaker cabinets, black fixtures, butcher-block island"
+  frame?: string; // /scans/<model>/<room>.jpg: the view that shows it
+}
+
+/** The whole interior: what the house feels like inside, with the evidence per room. */
+export interface InteriorProfile {
+  modelId: string;
+  scannedAt: string;
+  styles: { name: string; confidence: number }[];
+  summary: string; // one sentence a client would understand
+  feel: string[];
+  palette: string[];
+  materials: string[];
+  light: number;
+  consistency: "cohesive" | "mixed"; // do the rooms share one look?
+  rooms: RoomVibe[];
 }
 
 /** Provenance + extra facts straight from the CoStar data kit. */
@@ -110,6 +140,7 @@ export interface Lead {
   events: LeadEvent[];
   archived?: boolean;
   language?: string; // client language when not English (auto-translated)
+  customerId?: string; // links the lead to the customer's searches and views
 }
 
 export interface Agent {
@@ -120,10 +151,47 @@ export interface Agent {
   color: string;
 }
 
+/** What a photo actually shows, decided before any style tagging. "unknown" = the vision model was unavailable. */
+export type PhotoSubject = "interior" | "exterior" | "floor_plan" | "decor" | "other_space" | "not_home" | "unknown";
+
 export interface VibeTags {
-  style: string[];
+  subject?: PhotoSubject;
+  relevant?: boolean; // true only when the photo is a home (or home-like space) the model is confident about
+  subjectConfidence?: number;
+  description?: string; // what is in the photo, in English
+  message?: string; // one sentence for the user, in their language
+  beds?: number; // bedrooms counted on a floor plan
+  style: string[]; // taxonomy keys from lib/styles.ts
+  styleConfidence?: Record<string, number>;
   materials: string[];
   colors: string[];
   ambience: string[];
   light: number;
 }
+
+/** Customer-side activity, recorded by the homebuyer app and read by the brokerage dashboard. */
+export interface CustomerProfile {
+  id: string;
+  name?: string;
+  email?: string;
+  age?: number;
+  location?: string; // where the customer lives now, e.g. "Austin, TX"
+  phone?: string;
+  updatedAt: number;
+  createdAt?: number;
+  // account (demo: kept in the browser store; production: an auth provider + database)
+  passwordHash?: string; // salted SHA-256, never the password itself
+  salt?: string;
+  consent?: Consent;
+}
+/** What the customer agreed to. Only `terms` is required to have an account; everything else is opt-in. */
+export interface Consent {
+  version: string; // privacy notice version they agreed to
+  terms: number | null; // when they accepted the Terms and Privacy Notice
+  activity: boolean; // save searches + listing views to improve matches, and use them (in aggregate) in brokerage insights
+  contact: boolean; // a Real Estate Agent may email/call about homes they show interest in
+  shareWithOwners: boolean; // owners of homes they look at may see their name, age and email
+  updatedAt: number;
+}
+export interface SearchEvent { customerId: string; at: number; text: string; tags: string[]; neighborhoods: string[]; city?: string; intent?: ListingKind; budgetMax?: number }
+export interface ViewEvent { customerId: string; at: number; listingId: string; ms: number }

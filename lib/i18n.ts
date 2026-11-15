@@ -55,7 +55,7 @@ const D: Record<string, Dict> = {
   es: {
     tagline1: "Di la casa.", tagline2: "Encuentra tu hogar.", tapTalk: "Toca y habla.", typeInstead: "Escribir", showPhoto: "Mostrar una foto",
     listening: "Escuchando…", goAhead: "Adelante, te escucho.", pauseHint: "Respondo cuando hagas una pausa", finding: "Buscando hogares que se sientan bien…",
-    sayMore: "Di o escribe más…", interested: "¡Me interesa!", interestedSub: "Un agente real lo verifica", tour3d: "Tour 3D", whyFits: "Por qué te queda",
+    sayMore: "Di o escribe más…", interested: "¡Me interesa!", interestedSub: "Un agente real lo verifica", tour3d: "Tour 3D", inside: "Adentro", outside: "Afuera", outsideDrone: "Exterior 3D · dron · arrastra para girar", outsideAerial: "Vista aérea del exterior", photoNotHome: "Esa foto no parece una casa. Compárteme una foto de una habitación o casa que te guste, o descríbela.", photoUnread: "No pude revisar tu foto ahora. Cuéntame qué te gusta de ella y busco casas parecidas.", whyFits: "Por qué te queda",
     walk: "min a pie al centro", drive: "min en auto al centro", petsOk: "Mascotas OK", noPets: "Sin mascotas",
     sheetTitle: "Un agente real sigue desde aquí", sheetBody: "Un agente con licencia confirma que está disponible, con el precio correcto y que es para ti. Luego te llama.", send: "Enviar a un agente",
     yourHome: "Tu hogar", sent: "Enviado a un agente con licencia", verifying: "Un agente está verificando este hogar", verifiedBy: "Verificado por",
@@ -65,7 +65,7 @@ const D: Record<string, Dict> = {
   zh: {
     tagline1: "说出你想要的房子。", tagline2: "找到你的家。", tapTalk: "点一下，直接说。", typeInstead: "改为输入", showPhoto: "上传照片",
     listening: "正在听…", goAhead: "请说，我在听。", pauseHint: "你停顿时我就回答", finding: "正在寻找合适的家…",
-    sayMore: "继续说或输入…", interested: "我感兴趣！", interestedSub: "由真人经纪人核实", tour3d: "3D 看房", whyFits: "为什么适合你",
+    sayMore: "继续说或输入…", interested: "我感兴趣！", interestedSub: "由真人经纪人核实", tour3d: "3D 看房", inside: "室内", outside: "外观", outsideDrone: "无人机 3D 外观 · 拖动旋转", outsideAerial: "外观航拍", photoNotHome: "这张照片看起来不是房子。请分享一张你喜欢的房间或房子的照片，或者描述一下。", photoUnread: "我现在没法查看这张照片。告诉我你喜欢它的哪些地方，我来找类似的房子。", whyFits: "为什么适合你",
     walk: "分钟步行到市中心", drive: "分钟车程到市中心", petsOk: "可养宠物", noPets: "不可养宠物",
     sheetTitle: "接下来由真人经纪人跟进", sheetBody: "持证经纪人会确认房源可用、价格准确、适合你，然后给你打电话。", send: "发送给经纪人",
     yourHome: "你的家", sent: "已发送给持证经纪人", verifying: "经纪人正在核实这套房子", verifiedBy: "已核实：",
@@ -75,7 +75,7 @@ const D: Record<string, Dict> = {
   ko: {
     tagline1: "원하는 집을 말하세요.", tagline2: "당신의 집을 찾으세요.", tapTalk: "탭하고 말하세요.", typeInstead: "입력하기", showPhoto: "사진 보여주기",
     listening: "듣고 있어요…", goAhead: "말씀하세요, 듣고 있어요.", pauseHint: "말을 멈추면 답할게요", finding: "딱 맞는 집을 찾는 중…",
-    sayMore: "더 말하거나 입력하세요…", interested: "관심 있어요!", interestedSub: "실제 중개사가 확인해요", tour3d: "3D 투어", whyFits: "잘 맞는 이유",
+    sayMore: "더 말하거나 입력하세요…", interested: "관심 있어요!", interestedSub: "실제 중개사가 확인해요", tour3d: "3D 투어", inside: "실내", outside: "외관", outsideDrone: "드론 3D 외관 · 드래그해서 회전", outsideAerial: "외관 항공 사진", photoNotHome: "이 사진은 집이 아닌 것 같아요. 마음에 드는 방이나 집 사진을 보내 주시거나 설명해 주세요.", photoUnread: "지금은 사진을 확인할 수 없었어요. 사진의 어떤 점이 좋은지 말씀해 주시면 비슷한 집을 찾아볼게요.", whyFits: "잘 맞는 이유",
     walk: "분 도보 (다운타운)", drive: "분 차량 (다운타운)", petsOk: "반려동물 가능", noPets: "반려동물 불가",
     sheetTitle: "이제 실제 중개사가 도와드려요", sheetBody: "공인 중개사가 매물 여부, 가격, 적합성을 확인한 뒤 전화드려요.", send: "중개사에게 보내기",
     yourHome: "나의 집", sent: "공인 중개사에게 전송됨", verifying: "중개사가 이 집을 확인 중", verifiedBy: "확인 완료:",
@@ -86,12 +86,19 @@ const D: Record<string, Dict> = {
 export const EN: Dict = {
   tagline1: "Say the house.", tagline2: "Find your home.", tapTalk: "Tap and just talk.", typeInstead: "Type instead", showPhoto: "Show a photo",
   listening: "Listening…", goAhead: "Go ahead, I'm listening.", pauseHint: "I'll answer when you pause", finding: "Finding homes that feel right…",
-  sayMore: "Say or type more…", interested: "Interested!", interestedSub: "A Real Estate Agent verifies it", tour3d: "3D tour", whyFits: "Why it fits you",
+  sayMore: "Say or type more…", interested: "Interested!", interestedSub: "A Real Estate Agent verifies it", tour3d: "3D tour", inside: "Inside", outside: "Outside", outsideDrone: "Drone 3D exterior · drag to orbit", outsideAerial: "Aerial view of the outside", photoNotHome: "That photo doesn't look like a home. Share a photo of a room or house you love, or describe it.", photoUnread: "I couldn't check your photo just now. Tell me what you love about it and I'll find homes like it.", whyFits: "Why it fits you",
   walk: "min walk to downtown", drive: "min drive to downtown", petsOk: "Pets OK", noPets: "No pets",
   sheetTitle: "A Real Estate Agent takes it from here", sheetBody: "A licensed Real Estate Agent checks that this home is available, priced right, and right for you — then calls you.", send: "Send to a Real Estate Agent",
   yourHome: "Your home", sent: "Sent to a licensed Real Estate Agent", verifying: "A Real Estate Agent is verifying this home", verifiedBy: "Verified by",
   book: "Book a tour", apply: "Apply", startApp: "Start application", movein: "Move in", welcome: "Lease signed. Welcome home.",
   chips: "Cheaper|Closer to downtown|Pet friendly|More light|Quieter street",
+  talk: "Talk", photo: "Photo", type: "Type", photoSub: "Show me a home you love, I'll find ones like it", back: "Back", map: "Map", homes: "Homes",
+  tourTitle: "Walk through it in 3D", tourBody: "Tap to look around every room", talkInstead: "Talk instead", findHome: "Find my home",
+  describe: "Describe the place you want…", example: "Try an example", emptyResults: "Nothing matched yet. Try saying it another way.",
+  aiPowered: "AI-powered", introBody: "Say what you're looking for in your own words and language, or show a photo of a home you love. AI reads it, searches real listings by feel and fit, and a licensed Real Estate Agent checks the match.",
+  ask: "Ask", uploadPhoto: "upload a photo of a home you love", orUpload: "Or", dropHint: "(or drop it here). Words in the box, like “under $2,000”, narrow the matches.", dropHere: "Drop a photo of a home you love",
+  justTalk: "Just talk instead →", examples: "Bright 1-bedroom in the Heights under $1,600, I have a dog|Family home near good schools in Los Angeles, 3 beds|Quiet modern condo close to downtown Houston, walkable",
+  emptyAsk: "Describe a home or add a photo first.",
 };
 export const t = (lang: Lang, k: keyof typeof EN | string) => (lang === "en" ? EN[k] : D[lang]?.[k] ?? EN[k]) ?? k;
 export const hasDict = (lang: Lang) => lang === "en" || Boolean(D[lang]);
