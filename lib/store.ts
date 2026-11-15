@@ -6,7 +6,7 @@
  */
 "use client";
 import { useEffect, useState } from "react";
-import type { Consent, Criteria, CustomerProfile, Lead, LeadStatus, Listing, SearchEvent, ViewEvent } from "./types";
+import type { Consent, Criteria, DealType, CustomerProfile, Lead, LeadStatus, Listing, SearchEvent, ViewEvent } from "./types";
 import { dealValue, leadRecap } from "./recap";
 import { getListing } from "./adapters";
 
@@ -139,13 +139,15 @@ function withLead(id: string, fn: (l: Lead) => void) {
 }
 
 // ---------- Customer actions ----------
-export function createLead(p: { language?: string; clientName: string; transcript: string[]; criteria: Criteria; suggestions: Listing[]; chosen: Listing }): string {
+export function createLead(p: { dealType?: DealType; language?: string; clientName: string; transcript: string[]; criteria: Criteria; suggestions: Listing[]; chosen: Listing }): string {
   const id = "ld-" + Math.floor(now() / 1000).toString(36);
   const t = now();
   const lead: Lead = {
     id,
     clientName: p.clientName,
     customerId: sessionId() || undefined,
+    dealType: p.dealType,
+    sim: { step: 0 },
     clientPhone: "(713) 555-0142",
     language: p.language,
     createdAt: t,

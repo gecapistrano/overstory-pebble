@@ -102,6 +102,9 @@ export interface Criteria {
   city?: string; // "Houston" (default) | "Los Angeles"
 }
 
+/** How the client wants the home: buy it, rent it (flexible / month-to-month), or sign a fixed-term lease. */
+export type DealType = "buy" | "rent" | "lease";
+
 export type LeadStatus = "new" | "verified" | "touring" | "application" | "closed" | "cancelled";
 
 export interface LeadRecap {
@@ -131,7 +134,7 @@ export interface Lead {
   status: LeadStatus;
   checklist: { available: boolean; price: boolean; fits: boolean; legal: boolean };
   agentId: string;
-  messages: { from: "client" | "agent" | "ai"; text: string; at: number }[];
+  messages: { from: "client" | "agent" | "ai"; text: string; at: number; milestone?: boolean }[];
   lastClientActivity: number;
   nudgesSent: number;
   rescuedByNudge: boolean;
@@ -141,6 +144,9 @@ export interface Lead {
   archived?: boolean;
   language?: string; // client language when not English (auto-translated)
   customerId?: string; // links the lead to the customer's searches and views
+  dealType?: DealType; // buy / rent / lease (older leads: derived from the listing kind)
+  sim?: { step: number }; // demo: the fast-forwarded closing conversation, step by step (lib/closing.ts)
+  closedAt?: number;
 }
 
 export interface Agent {

@@ -1,6 +1,6 @@
 "use client";
 import { createContext, useCallback, useContext, useEffect, useRef, useState } from "react";
-import type { Criteria, Lead, Listing } from "@/lib/types";
+import type { Criteria, DealType, Lead, Listing } from "@/lib/types";
 import { listingsSync, getListing, analyzePhotos } from "@/lib/adapters";
 import { emptyCriteria, parseRequest, CHIPS } from "@/lib/parse";
 import { topThree } from "@/lib/search";
@@ -9,7 +9,8 @@ import { spokenRecap, price, commute, bedsBaths, vibeTag, agentById } from "@/li
 import { listen, speak, speechSupported } from "@/lib/speech";
 import { detectLanguage, toEnglish, t, switchPrompt, recapIn, speechLang, LANG_NAME, EN, hasDict, registerLanguage, type Lang } from "@/lib/i18n";
 import { aiParse, aiRecap, aiTranslate } from "@/lib/ai";
-import { bookTour, createLead, recordSearch, recordView, setLeadRecap, submitApplication, updateAccount, updateConsent, useAccount, useStore } from "@/lib/store";
+import { createLead, recordSearch, recordView, setLeadRecap, updateAccount, updateConsent, useAccount, useStore } from "@/lib/store";
+import { DEAL, closingLive, dealOptions, dealTypeOf, defaultDeal, fmtDay, fmtTime, runClosing } from "@/lib/closing";
 import { AuthFlow, ProfileScreen, type AuthMode } from "@/components/customer/Account";
 import type { CustomerProfile } from "@/lib/types";
 import HomeArt from "@/components/HomeArt";
@@ -21,10 +22,14 @@ import AerialView from "@/components/AerialView";
 import { Avatar, Icon } from "@/components/ui";
 import Mascot, { type MascotState } from "@/components/Mascot";
 
-type View = "home" | "listening" | "thinking" | "results" | "detail" | "tour" | "status";
+type View = "home" | "listening" | "thinking" | "results" | "detail" | "tour" | "status" | "myhome";
 
 const LangCtx = createContext<Lang>("en");
 const useT = () => { const l = useContext(LangCtx); return (k: string) => t(l, k); };
+
+// what the buyer picked on the home screen (Buy / Rent / Lease), added to the request when they didn't say it
+const INTENT_WORDS = /(buy|buying|purchase|own|mortgage|for sale|rent|renting|rental|lease|leasing|apartment|office|retail|commercial|storefront|land|lot|acres?|stay|hotel|airbnb|nightly)/i;
+const WANT_HINT: Record<DealType, string> = { buy: "(I want to buy)", rent: "(I want to rent)", lease: "(I want to lease)" };
 
 const SAMPLE = "I'm starting a job in downtown Houston in January, looking for a bright 1-bedroom in the Heights under $1,600, close to downtown, I have a dog";
 
@@ -40,7 +45,7 @@ export default function CustomerApp() {
   const [showMap, setShowMap] = useState(false);
   const [active, setActive] = useState(0);
   const [detail, setDetail] = useState<Listing | null>(null);
-  const [tourFrom, setTourFrom] = useState<"detail" | "results">("detail");
+  const [tourFrom, setTourFrom] = useState<"detail" | "results" | "myhome">("detail");
   const [sheet, setSheet] = useState(false);
   const account = useAccount();
   const [auth, setAuth] = useState<{ start: AuthMode; reason?: string; then?: "sheet" } | null>(null);
@@ -58,6 +63,10 @@ export default function CustomerApp() {
     else setAuth({ start: "welcome", reason: "Create an account so a licensed Real Estate Agent can reach you about this home.", then: "sheet" });
   };
   const [leadId, setLeadId] = useState<string | null>(null);
+  const [want, setWant] = useState<DealType | null>(null);
+  const wantRef = useRef(want);
+  wantRef.current = want;
+  const [celebrate, setCelebrate] = useState<string | null>(null);
   const [typeMode, setTypeMode] = useState(false);
   const [photo, setPhoto] = useState<string | null>(null);
   const [photoOnly, setPhotoOnly] = useState(false); // last turn was a photo that wasn't a home: no search ran
@@ -111,7 +120,8 @@ export default function CustomerApp() {
     }
     setPhotoOnly(false);
     // 2) Gemini: understand (any language) -> search -> re-rank with reasons
-    const ai = await aiParse([text, photoHint].filter(Boolean).join(" "), prev, imageTags);
+    const hint = wantRef.current && !INTENT_WORDS.test(text) ? WANT_HINT[wantRef.current] : "";
+    const ai = await aiParse([text, hint, photoHint].filter(Boolean).join(" "), prev, imageTags);
     let c: Criteria, top: Listing[], english: string, native: string, spoken: Lang;
     if (ai && ai.picks?.length) {
       c = { ...ai.criteria, vibes: ai.criteria.vibes || [], neighborhoods: ai.criteria.neighborhoods || [] };
@@ -125,7 +135,7 @@ export default function CustomerApp() {
     } else {
       // offline fallback: on-device rules
       spoken = detectLanguage(text || " ");
-      c = parseRequest(toEnglish(text, spoken), prev);
+      c = parseRequest([toEnglish(text, spoken), hint].filter(Boolean).join(" "), prev);
       if (imageTags.length) {
         const vibeWords = imageTags.map((v) => (v === "creative" ? "artsy" : v === "airy" ? "bright" : v)).filter((v) => isStyle(v) || ["cozy", "artsy", "bright", "quiet"].includes(v));
         c = { ...c, vibes: [...new Set([...vibeWords, ...c.vibes])] };
@@ -191,6 +201,25 @@ export default function CustomerApp() {
 
   const allLeads = useStore((s) => s.leads);
   const lead = leadId ? allLeads.find((l) => l.id === leadId) : undefined;
+  // this customer's deals: in progress, and homes they bought / rent / lease (shown on the home screen)
+  const myDeals = account ? allLeads.filter((l) => l.customerId === account.id && l.status !== "cancelled") : [];
+  const myKey = myDeals.map((l) => `${l.id}:${l.status}`).join(",");
+  // demo: the agent accepts and the closing plays out on its own (and resumes after a reload)
+  useEffect(() => { myDeals.forEach((l) => closingLive(l) && runClosing(l.id)); }, [myKey]); // eslint-disable-line react-hooks/exhaustive-deps
+  // a deal that closes while the app is open gets the congratulations screen, wherever the buyer is
+  const closedSeen = useRef<Set<string> | null>(null);
+  useEffect(() => {
+    const closed = myDeals.filter((l) => l.status === "closed").map((l) => l.id);
+    if (!closedSeen.current) { closedSeen.current = new Set(closed); return; }
+    const fresh = closed.find((id) => !closedSeen.current!.has(id));
+    closed.forEach((id) => closedSeen.current!.add(id));
+    if (fresh) setTimeout(() => setCelebrate(fresh), 900);
+  }, [myKey]); // eslint-disable-line react-hooks/exhaustive-deps
+  const openDeal = (l: Lead) => {
+    setLeadId(l.id);
+    if (l.status === "closed") { setDetail(getListing(l.chosenListingId) || null); setView("myhome"); }
+    else setView("status");
+  };
 
   // demo API for scripted recordings: window.pebble.*
   useEffect(() => {
@@ -233,13 +262,14 @@ export default function CustomerApp() {
     return () => recordView(viewing, Date.now() - started);
   }, [viewing]);
 
-  const sendLead = () => {
+  const sendLead = (dealType?: DealType) => {
     const chosen = detail || results[0];
     if (!chosen || !account) return;
-    const id = createLead({ language: lang === "en" ? (replyNative.lang !== "en" ? LANG_NAME[replyNative.lang]?.en : undefined) : LANG_NAME[lang]?.en || lang, clientName: account.name || "Pebble customer", transcript: transcriptRef.current, criteria: critRef.current, suggestions: results, chosen });
+    const id = createLead({ dealType: dealType || defaultDeal(chosen, wantRef.current), language: lang === "en" ? (replyNative.lang !== "en" ? LANG_NAME[replyNative.lang]?.en : undefined) : LANG_NAME[lang]?.en || lang, clientName: account.name || "Pebble customer", transcript: transcriptRef.current, criteria: critRef.current, suggestions: results, chosen });
     setLeadId(id);
     setSheet(false);
     setView("status");
+    runClosing(id);
     // Gemini writes the agent's recap in English from the client's own words
     aiRecap(critRef.current, transcriptRef.current, chosen, lang === "en" ? undefined : LANG_NAME[lang]?.en).then((r) => r && setLeadRecap(id, r));
   };
@@ -253,7 +283,7 @@ export default function CustomerApp() {
   return (
     <LangCtx.Provider value={lang}>
     <div className="relative h-full w-full bg-canvas text-ink overflow-hidden" dir={lang === "ar" ? "rtl" : "ltr"} lang={lang}>
-      {view === "home" && <Home onMic={startListening} onSubmit={(t) => { setPartial(t); process(t); }} onPhoto={(f) => onPhoto(f)} />}
+      {view === "home" && <Home want={want} setWant={setWant} deals={myDeals} onDeal={openDeal} onMic={startListening} onSubmit={(t) => { setPartial(t); process(t); }} onPhoto={(f) => onPhoto(f)} />}
       {view === "listening" && (
         <Listening
           partial={partial}
@@ -296,13 +326,19 @@ export default function CustomerApp() {
             <button onClick={() => setView(tourFrom)} className="pointer-events-auto w-10 h-10 rounded-full bg-card/90 shadow-card flex items-center justify-center"><Icon name="back" /></button>
             <div className="px-3 py-1.5 rounded-full bg-card/90 shadow-card text-xs">{detail.matterportId ? "Matterport 3D scan · via CoStar" : "Living room · drag to look around"}</div>
           </div>
-          <div className="absolute bottom-8 left-4 right-4">
+          <div className={`absolute bottom-8 left-4 right-4 ${tourFrom === "myhome" ? "hidden" : ""}`}>
             <button onClick={interested} className="w-full h-14 rounded-full bg-clay text-white text-lg shadow-card">{t(lang, "interested")}</button>
           </div>
         </div>
       )}
-      {view === "status" && lead && <Status lead={lead} onBack={() => setView("results")} />}
-      {sheet && detail && account && <ShareSheet l={detail} account={account} onClose={() => setSheet(false)} onSend={sendLead} />}
+      {view === "status" && lead && <Status lead={lead} onBack={() => setView(results.length ? "results" : "home")} onHome={() => setView("home")} onMyHome={() => openDeal(lead)} />}
+      {view === "myhome" && detail && lead && (
+        <Detail l={detail} criteria={criteria} why="" onBack={() => setView("home")} onTour={() => { setTourFrom("myhome"); setView("tour"); }} onTalk={() => undefined} owned={lead} onConversation={() => setView("status")} />
+      )}
+      {sheet && detail && account && <ShareSheet l={detail} account={account} want={want} onClose={() => setSheet(false)} onSend={sendLead} />}
+      {celebrate && (() => { const d = allLeads.find((l) => l.id === celebrate); return d ? (
+        <Congrats lead={d} onView={() => { setCelebrate(null); openDeal(d); }} onBrowse={() => { setCelebrate(null); setView("home"); }} />
+      ) : null; })()}
       {(view === "home" || view === "results") && !auth && !profileOpen && (
         <button onClick={() => (account ? setProfileOpen(true) : setAuth({ start: "login" }))} aria-label={account ? "Your profile" : "Log in"}
           className="absolute top-12 right-4 z-30 h-9 min-w-9 px-3 rounded-full bg-card/95 text-ink shadow-card text-sm flex items-center justify-center gap-1.5">
@@ -341,7 +377,7 @@ function PhotoPicker({ onPick, className, children, label }: { onPick: (f: File)
 
 /** Opening screen, in the OverStory intro layout: Pebble + badges, one line of story, then one request —
  *  typed, spoken, or a photo of a home they love — in a single white search bar, with example requests below. */
-function Home({ onMic, onSubmit, onPhoto }: { onMic: () => void; onSubmit: (t: string) => void; onPhoto: (f: File) => void }) {
+function Home({ onMic, onSubmit, onPhoto, want, setWant, deals, onDeal }: { onMic: () => void; onSubmit: (t: string) => void; onPhoto: (f: File) => void; want: DealType | null; setWant: (d: DealType | null) => void; deals: Lead[]; onDeal: (l: Lead) => void }) {
   const tr = useT();
   const [q, setQ] = useState("");
   const [err, setErr] = useState(false);
@@ -380,7 +416,19 @@ function Home({ onMic, onSubmit, onPhoto }: { onMic: () => void; onSubmit: (t: s
           </h1>
           <p className="animate-rise mt-4 text-[15px] leading-relaxed text-white/75" style={{ animationDelay: "250ms" }}>{tr("introBody")}</p>
 
-          <form className="animate-rise mt-7" style={{ animationDelay: "380ms" }} onSubmit={(e) => { e.preventDefault(); submit(q); }}>
+          {deals.length > 0 && <MyDeals deals={deals} onDeal={onDeal} />}
+
+          <div className="animate-rise mt-7 flex items-center gap-2" style={{ animationDelay: "330ms" }} role="group" aria-label="I want to">
+            <span className="text-[12.5px] text-white/60">I want to</span>
+            <div className="flex rounded-full bg-white/10 p-0.5">
+              {(["buy", "rent", "lease"] as const).map((d) => (
+                <button key={d} type="button" aria-pressed={want === d} onClick={() => setWant(want === d ? null : d)}
+                  className={`h-8 rounded-full px-3.5 text-[13px] font-medium transition ${want === d ? "bg-white text-navy" : "text-white/80 hover:text-white"}`}>{DEAL[d].label}</button>
+              ))}
+            </div>
+          </div>
+
+          <form className="animate-rise mt-3" style={{ animationDelay: "380ms" }} onSubmit={(e) => { e.preventDefault(); submit(q); }}>
             <div className="flex items-center gap-1.5 rounded-2xl bg-white p-1.5 pl-3.5 text-ink shadow-[0_20px_50px_-12px_rgba(0,0,0,0.45)]">
               <span className="text-[17px] text-violet" aria-hidden="true">✦</span>
               <input
@@ -591,7 +639,7 @@ function Results(p: {
   );
 }
 
-function Detail({ l, criteria, why, onBack, onTour, onTalk }: { l: Listing; criteria: Criteria; why: string; onBack: () => void; onTour: () => void; onTalk: () => void }) {
+function Detail({ l, criteria, why, onBack, onTour, onTalk, owned, onConversation }: { l: Listing; criteria: Criteria; why: string; onBack: () => void; onTour: () => void; onTalk: () => void; owned?: Lead; onConversation?: () => void }) {
   const tr = useT();
   const variants = ["exterior", "living", "bedroom", "kitchen"] as const;
   const fits = [
@@ -638,21 +686,37 @@ function Detail({ l, criteria, why, onBack, onTour, onTalk }: { l: Listing; crit
         </button>
         <AerialView l={l} className="mx-4 mt-6" />
       </div>
+      {owned ? (
+        <div className="absolute bottom-0 left-0 right-0 p-4 pb-8 bg-gradient-to-t from-canvas via-canvas to-canvas/0">
+          <div className="rounded-3xl bg-card shadow-card p-3 flex items-center gap-3">
+            <div className="w-11 h-11 rounded-full bg-sage text-white grid place-items-center shrink-0"><Icon name="key" className="w-5 h-5" /></div>
+            <div className="flex-1 min-w-0">
+              <div className="text-[15px] font-medium">{DEAL[dealTypeOf(owned)].owned}</div>
+              <div className="text-[12px] text-stone truncate">{DEAL[dealTypeOf(owned)].since} {owned.closedAt ? fmtDay(owned.closedAt) : ""} · with {agentById(owned.agentId).name}</div>
+            </div>
+            {onConversation && <button onClick={onConversation} className="h-10 px-3.5 rounded-full bg-sage-soft text-sage-ink text-[13px] shrink-0">Messages</button>}
+          </div>
+        </div>
+      ) : (
       <div className="absolute bottom-0 left-0 right-0 p-4 pb-8 bg-gradient-to-t from-canvas via-canvas to-canvas/0">
         <button onClick={onTalk} className="w-full h-14 rounded-full bg-clay text-white shadow-[0_10px_30px_rgba(22,50,90,.3)] flex flex-col items-center justify-center leading-tight"><span className="text-[17px]">{tr("interested")}</span><span className="text-[11px] opacity-85">{tr("interestedSub")}</span></button>
       </div>
+      )}
     </div>
   );
 }
 
-function ShareSheet({ l, account, onClose, onSend }: { l: Listing; account: CustomerProfile; onClose: () => void; onSend: () => void }) {
+function ShareSheet({ l, account, want, onClose, onSend }: { l: Listing; account: CustomerProfile; want: DealType | null; onClose: () => void; onSend: (d: DealType) => void }) {
   const tr = useT();
   const lang = useContext(LangCtx);
   const [phone, setPhone] = useState(account.phone || "");
+  const options = dealOptions(l);
+  const [deal, setDeal] = useState<DealType>(defaultDeal(l, want));
+  const DEAL_SUB: Record<DealType, string> = { buy: `Make an offer · ${price(l)}`, lease: l.kind === "commercial" ? "Multi-year commercial lease" : "Fixed term, usually 12 months", rent: "Flexible, month-to-month" };
   const canContact = Boolean(account.consent?.contact);
   const send = () => {
     if (phone.trim() !== (account.phone || "")) updateAccount({ phone: phone.trim() });
-    onSend();
+    onSend(deal);
   };
   return (
     <div className="absolute inset-0 z-40 flex flex-col justify-end bg-black/25 fadein" onClick={onClose}>
@@ -660,7 +724,19 @@ function ShareSheet({ l, account, onClose, onSend }: { l: Listing; account: Cust
         <div className="w-10 h-1 rounded-full bg-line mx-auto mb-5" />
         <h3 className="font-display text-[24px] leading-snug">{tr("sheetTitle")}</h3>
         <p className="text-[15px] text-stone mt-1.5">{lang === "en" ? <>A licensed Real Estate Agent checks that <span className="text-ink">{l.title}</span> is available, priced right, and right for you, then contacts you.</> : tr("sheetBody")}</p>
-        <div className="mt-5 rounded-3xl bg-canvas p-4">
+        <div className="mt-5">
+          <div className="text-[13px] text-stone mb-2">How do you want this home?</div>
+          <div className={`grid gap-2 ${options.length > 1 ? "grid-cols-2" : "grid-cols-1"}`}>
+            {options.map((d) => (
+              <button key={d} type="button" onClick={() => setDeal(d)} aria-pressed={deal === d}
+                className={`rounded-2xl border-2 p-3 text-left transition ${deal === d ? "border-sage bg-sage-soft" : "border-line bg-card"}`}>
+                <div className="text-[15px] font-medium">{DEAL[d].verb}</div>
+                <div className="text-[12px] text-stone leading-snug">{DEAL_SUB[d]}</div>
+              </button>
+            ))}
+          </div>
+        </div>
+        <div className="mt-4 rounded-3xl bg-canvas p-4">
           <p className="text-[15px]">{account.name}</p>
           <p className="text-sm text-stone">{account.email}</p>
           <input aria-label="Phone" type="tel" value={phone} onChange={(e) => setPhone(e.target.value)} placeholder="Phone (so the agent can call)" className="mt-3 h-11 w-full rounded-full border border-line bg-card px-4 text-[15px] outline-none focus:border-sage" />
@@ -676,67 +752,150 @@ function ShareSheet({ l, account, onClose, onSend }: { l: Listing; account: Cust
   );
 }
 
-function Status({ lead, onBack }: { lead: Lead; onBack: () => void }) {
-  const tr = useT();
+/** "Your homes" on the start screen: homes the buyer bought, rents or leased, and deals still in progress. */
+function MyDeals({ deals, onDeal }: { deals: Lead[]; onDeal: (l: Lead) => void }) {
+  const done = deals.filter((d) => d.status === "closed");
+  const open = deals.filter((d) => d.status !== "closed");
+  const row = (d: Lead) => {
+    const l = getListing(d.chosenListingId);
+    if (!l) return null;
+    const t = DEAL[dealTypeOf(d)];
+    const closed = d.status === "closed";
+    return (
+      <button key={d.id} type="button" onClick={() => onDeal(d)} className="w-full flex items-center gap-3 rounded-2xl bg-white/10 p-2 text-left hover:bg-white/15">
+        <div className="w-16 h-12 rounded-xl overflow-hidden shrink-0"><HomeArt listing={l} className="w-full h-full" /></div>
+        <div className="flex-1 min-w-0">
+          <div className="text-[14px] font-medium truncate">{l.title}</div>
+          <div className="text-[12px] text-white/65 truncate">{closed ? `${t.done}${d.closedAt ? ` · ${fmtDay(d.closedAt)}` : ""}` : closingLive(d) ? "Your agent is on it…" : "In progress"} · {l.neighborhood}</div>
+        </div>
+        <span className={`shrink-0 rounded-full px-2 py-0.5 text-[11px] font-medium ${closed ? "bg-[#2A8A5C] text-white" : "bg-white/15 text-white/85"}`}>{closed ? t.done : t.label}</span>
+      </button>
+    );
+  };
+  return (
+    <div className="animate-rise mt-7 space-y-3" style={{ animationDelay: "300ms" }}>
+      {done.length > 0 && <div><div className="mb-2 text-[12.5px] font-medium text-white/70">Your homes</div><div className="space-y-2">{done.map(row)}</div></div>}
+      {open.length > 0 && <div><div className="mb-2 text-[12.5px] font-medium text-white/70">In progress</div><div className="space-y-2">{open.map(row)}</div></div>}
+      <div className="pt-1 text-[12.5px] text-white/60">Or browse more homes:</div>
+    </div>
+  );
+}
+
+const STEP_LABELS: Record<DealType, string[]> = {
+  buy: ["Sent", "Verified", "Toured", "Under contract", "Closed"],
+  rent: ["Sent", "Verified", "Toured", "Applied", "Moved in"],
+  lease: ["Sent", "Verified", "Toured", "Terms agreed", "Lease signed"],
+};
+
+/** The deal, as a conversation with the agent. In the demo it plays out fast-forwarded (lib/closing.ts). */
+function Status({ lead, onBack, onHome, onMyHome }: { lead: Lead; onBack: () => void; onHome: () => void; onMyHome: () => void }) {
   const l = getListing(lead.chosenListingId)!;
   const agent = agentById(lead.agentId);
+  const deal = dealTypeOf(lead);
   const order = ["new", "verified", "touring", "application", "closed"];
-  const at = order.indexOf(lead.status);
-  const lastAgentMsg = [...lead.messages].reverse().find((m) => m.from === "agent");
-  const firstAgentMsg = lead.messages.find((m) => m.from === "agent");
-  const steps = [
-    { t: tr("sent"), d: "Your wishes and this home, summarized." },
-    { t: at >= 1 ? `${tr("verifiedBy")} ${agent.name}` : tr("verifying"), d: at >= 1 ? "Available, price confirmed, a good fit." : "Checking availability, price and fit…" },
-    { t: lead.tourSlot ? `Tour booked · ${lead.tourSlot}` : tr("book"), d: at >= 2 ? "See you there!" : "Pick a time that works." },
-    { t: at >= 3 ? "Application sent" : tr("apply"), d: at >= 3 ? `${agent.name.split(" ")[0]} is handling the paperwork.` : "One tap when you're ready." },
-    { t: at >= 4 ? (l.kind === "buy" || l.kind === "land" ? "It's yours!" : tr("welcome")) : l.kind === "buy" || l.kind === "land" ? "Close" : tr("movein"), d: at >= 4 ? "Keys are waiting." : "" },
-  ];
-  const headline = at >= 1 ? steps[Math.min(at, 4)].t : tr("verifying");
+  const at = Math.max(0, order.indexOf(lead.status));
+  const live = closingLive(lead);
+  const msgs = lead.messages;
+  const last = msgs[msgs.length - 1];
+  const scroller = useRef<HTMLDivElement>(null);
+  useEffect(() => { scroller.current?.scrollTo({ top: scroller.current.scrollHeight, behavior: "smooth" }); }, [msgs.length, lead.status]);
+  let prevDay = "";
   return (
     <div className="absolute inset-0 flex flex-col bg-canvas">
-      <button onClick={onBack} className="self-start px-5 pb-2 pt-14 text-sm text-stone">{tr("back")}</button>
-      <div className="px-5 pb-2">
-        <p className="font-display text-2xl leading-snug">{headline}</p>
+      <div className="pt-14 px-5 pb-3 flex items-center gap-3">
+        <button onClick={onBack} aria-label="Back" className="w-9 h-9 rounded-full bg-card shadow-card grid place-items-center"><Icon name="back" className="w-4 h-4" /></button>
+        <Avatar initials={agent.initials} color={agent.color} size={36} />
+        <div className="flex-1 min-w-0">
+          <div className="text-[15px] font-medium leading-tight">{agent.name}</div>
+          <div className="text-[12px] text-stone truncate">{lead.status === "new" ? "Reviewing your request…" : `Licensed Real Estate Agent · ${DEAL[deal].label}`}</div>
+        </div>
+        {live && last && <span className="shrink-0 rounded-full bg-violet-soft text-violet px-2.5 py-1 text-[11px] font-medium">⏩ {fmtDay(last.at)}</span>}
       </div>
-      <div className="mx-5 mt-3 flex gap-3 items-center p-2 rounded-3xl bg-card shadow-card">
-        <div className="w-20 h-16 rounded-2xl overflow-hidden"><HomeArt listing={l} className="w-full h-full" /></div>
-        <div className="min-w-0"><div className="font-display text-lg">{price(l)}</div><div className="text-sm truncate">{l.title}</div><div className="text-xs text-stone">{l.neighborhood}</div></div>
+      <div className="mx-5 flex gap-3 items-center p-2 rounded-3xl bg-card shadow-card">
+        <div className="w-16 h-12 rounded-2xl overflow-hidden shrink-0"><HomeArt listing={l} className="w-full h-full" /></div>
+        <div className="min-w-0 flex-1"><div className="font-display text-[17px] leading-tight">{price(l)}</div><div className="text-[13px] truncate">{l.title}</div></div>
       </div>
-      <div className="flex-1 overflow-y-auto no-scrollbar px-5 pt-6 pb-8">
-        {steps.map((s, i) => {
-          const done = i <= at;
-          const current = i === at + 1;
+      <div className="mx-5 mt-3 flex items-center">
+        {STEP_LABELS[deal].map((s, i) => (
+          <div key={s} className="flex-1 flex flex-col items-center gap-1 relative">
+            {i > 0 && <span className={`absolute top-[8px] right-1/2 w-full h-0.5 ${i <= at ? "bg-sage" : "bg-line"}`} />}
+            <span className={`relative w-[18px] h-[18px] rounded-full grid place-items-center transition ${i <= at ? "bg-sage text-white" : "bg-canvas border-2 border-line"}`}>{i <= at && <Icon name="check" className="w-2.5 h-2.5" stroke={3.5} />}</span>
+            <span className={`text-[10px] leading-none text-center ${i <= at ? "text-ink" : "text-stone"}`}>{s}</span>
+          </div>
+        ))}
+      </div>
+      <div ref={scroller} className="flex-1 overflow-y-auto no-scrollbar px-4 pt-4 pb-6 space-y-2">
+        <div className="flex justify-end"><div className="max-w-[80%] rounded-2xl rounded-tr-md bg-sage text-white px-3.5 py-2.5 text-[14px] leading-snug">I&apos;m interested in {l.title}. Can you help me {DEAL[deal].verb.toLowerCase()}?</div></div>
+        {lead.status === "new" && <div className="text-center text-[12px] text-stone pt-2">Sent to {agent.name} · checking availability, price and fit…</div>}
+        {msgs.map((m, i) => {
+          const d = fmtDay(m.at);
+          const sep = d !== prevDay;
+          prevDay = d;
           return (
-            <div key={i} className="flex gap-4">
-              <div className="flex flex-col items-center">
-                <div className={`w-6 h-6 rounded-full flex items-center justify-center ${done ? "bg-sage text-white" : current ? "border-2 border-sage" : "border-2 border-line"}`}>
-                  {done ? <Icon name="check" className="w-3.5 h-3.5" stroke={3} /> : current ? <span className="w-2 h-2 rounded-full bg-sage animate-pulse" /> : null}
+            <div key={i} className="rise">
+              {sep && <div className="flex justify-center py-2"><span className="rounded-full bg-sand px-3 py-1 text-[11px] text-stone">{d}</span></div>}
+              {m.milestone ? (
+                <div className="flex justify-center"><span className="flex items-center gap-1.5 rounded-full bg-sage-soft text-sage-ink px-3 py-1.5 text-[12px] font-medium"><Icon name="check" className="w-3.5 h-3.5" stroke={2.6} />{m.text}</span></div>
+              ) : m.from === "client" ? (
+                <div className="flex justify-end"><div className="max-w-[80%]"><div className="rounded-2xl rounded-tr-md bg-sage text-white px-3.5 py-2.5 text-[14px] leading-snug">{m.text}</div><div className="text-right text-[10px] text-stone mt-0.5 mr-1">{fmtTime(m.at)}</div></div></div>
+              ) : (
+                <div className="flex items-end gap-2">
+                  <Avatar initials={agent.initials} color={agent.color} size={26} />
+                  <div className="max-w-[78%]"><div className="rounded-2xl rounded-bl-md bg-card shadow-card px-3.5 py-2.5 text-[14px] leading-snug whitespace-pre-line">{m.text}</div><div className="text-[10px] text-stone mt-0.5 ml-1">{fmtTime(m.at)}</div></div>
                 </div>
-                {i < steps.length - 1 && <div className={`w-0.5 flex-1 min-h-[28px] ${i < at ? "bg-sage" : "bg-line"}`} />}
-              </div>
-              <div className="pb-5 flex-1">
-                <div className={`text-[16px] ${done || current ? "text-ink" : "text-[#8592A6]"}`}>{s.t}</div>
-                {s.d && <div className="text-[13px] text-stone mt-0.5">{s.d}</div>}
-                {i === 1 && at >= 1 && (
-                  <div className="mt-3 flex items-start gap-2.5 rise">
-                    <Avatar initials={agent.initials} color={agent.color} size={34} />
-                    <div className="rounded-2xl rounded-tl-md bg-card shadow-card px-3.5 py-2.5 text-[14px] leading-snug">{firstAgentMsg?.text || `Hi ${lead.clientName.split(" ")[0]}, I'm ${agent.name}. I checked this home in person, it's yours to see.`}</div>
-                  </div>
-                )}
-                {i === 2 && at === 1 && (
-                  <div className="mt-3 flex gap-2 rise">{["Sat 10:00", "Sat 2:30", "Sun 11:00"].map((t) => <button key={t} onClick={() => bookTour(lead.id, t)} className="px-3 h-9 rounded-full bg-sage-soft text-sage-ink text-[13px]">{t}</button>)}</div>
-                )}
-                {i === 3 && at === 2 && (
-                  <div className="mt-3 rise">
-                    {lastAgentMsg && lead.nudgesSent > 0 && <div className="mb-3 flex items-start gap-2.5"><Avatar initials={agent.initials} color={agent.color} size={30} /><div className="rounded-2xl rounded-tl-md bg-card shadow-card px-3.5 py-2.5 text-[14px] leading-snug">{lastAgentMsg.text}</div></div>}
-                    <button onClick={() => submitApplication(lead.id)} className="h-11 px-5 rounded-full bg-clay text-white text-[14px]">{tr("startApp")}</button>
-                  </div>
-                )}
-                {i === 4 && at >= 4 && <div className="mt-3 flex items-center gap-2 text-sage font-display text-lg rise"><Icon name="key" className="w-5 h-5" />Congratulations, {lead.clientName.split(" ")[0]}!</div>}
-              </div>
+              )}
             </div>
           );
         })}
+        {live && (
+          <div className="flex items-end gap-2 pt-1">
+            <Avatar initials={agent.initials} color={agent.color} size={26} />
+            <div className="rounded-2xl rounded-bl-md bg-card shadow-card px-3.5 py-3 flex gap-1">{[0, 1, 2].map((i) => <span key={i} className="w-1.5 h-1.5 rounded-full bg-stone animate-bounce" style={{ animationDelay: `${i * 120}ms` }} />)}</div>
+          </div>
+        )}
+        {lead.status === "closed" && (
+          <div className="pt-3 flex gap-2 rise">
+            <button onClick={onMyHome} className="flex-1 h-12 rounded-full bg-clay text-white text-[15px] flex items-center justify-center gap-1.5"><Icon name="key" className="w-4 h-4" />View my home</button>
+            <button onClick={onHome} className="h-12 px-4 rounded-full border border-line bg-card text-[14px]">Browse homes</button>
+          </div>
+        )}
+      </div>
+    </div>
+  );
+}
+
+/** Shown to the homebuyer the moment the deal closes. */
+function Congrats({ lead, onView, onBrowse }: { lead: Lead; onView: () => void; onBrowse: () => void }) {
+  const l = getListing(lead.chosenListingId);
+  const t = DEAL[dealTypeOf(lead)];
+  const first = lead.clientName.replace(/^The /, "").split(" ")[0];
+  const colors = ["#7C6CF0", "#2A8A5C", "#E0702F", "#3478F0", "#F2C14E"];
+  return (
+    <div className="absolute inset-0 z-50 overflow-hidden bg-[radial-gradient(120%_70%_at_20%_0%,#1F3F6E_0%,#16325A_45%,#0C1C36_100%)] text-white fadein">
+      <style>{`@keyframes pb-fall{0%{transform:translateY(-20px) rotate(0)}100%{transform:translateY(860px) rotate(540deg)}}`}</style>
+      {[...Array(36)].map((_, i) => (
+        <span key={i} aria-hidden className="pointer-events-none absolute top-0 w-2 h-3 rounded-[2px]"
+          style={{ left: `${(i * 37) % 100}%`, background: colors[i % colors.length], animation: `pb-fall ${2.4 + ((i * 13) % 20) / 10}s linear ${((i * 7) % 15) / 10}s infinite`, opacity: 0.9 }} />
+      ))}
+      <div className="relative h-full flex flex-col px-6 pt-16 pb-10">
+        <Mascot state="happy" className="h-16 w-16" />
+        <p className="mt-6 text-[14px] text-white/70">Congratulations, {first}!</p>
+        <h1 className="mt-1 text-[34px] font-semibold leading-[1.08]">{t.congrats}</h1>
+        {l && (
+          <div className="mt-7 rounded-[28px] bg-white text-ink overflow-hidden shadow-[0_20px_50px_-12px_rgba(0,0,0,0.45)] rise">
+            <div className="h-40"><HomeArt listing={l} className="w-full h-full" /></div>
+            <div className="p-4">
+              <div className="flex items-center gap-2"><span className="rounded-full bg-[#2A8A5C] text-white px-2 py-0.5 text-[11px] font-medium">{t.done}</span><span className="text-[12px] text-stone">{lead.closedAt ? fmtDay(lead.closedAt) : ""}</span></div>
+              <div className="mt-1.5 font-display text-[20px] leading-tight">{l.title}</div>
+              <div className="text-[13px] text-stone">{price(l)} · {l.neighborhood} · with {agentById(lead.agentId).name}</div>
+            </div>
+          </div>
+        )}
+        <p className="mt-5 text-[14px] text-white/70 leading-relaxed">It&apos;s saved on your home screen. Open it any time, or keep browsing.</p>
+        <div className="mt-auto space-y-2.5">
+          <button onClick={onView} className="w-full h-14 rounded-full bg-white text-navy text-[16px] font-medium flex items-center justify-center gap-2"><Icon name="key" className="w-5 h-5" />View my home</button>
+          <button onClick={onBrowse} className="w-full h-12 rounded-full border border-white/30 text-[15px] text-white/90">Browse more homes</button>
+        </div>
       </div>
     </div>
   );

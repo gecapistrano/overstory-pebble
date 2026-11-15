@@ -1,11 +1,12 @@
 "use client";
-import { useEffect, useMemo, useState } from "react";
+import { useEffect, useMemo, useRef, useState } from "react";
 import type { Lead, LeadStatus, Listing } from "@/lib/types";
 import { getListing, listingsSync, analyzePhotos } from "@/lib/adapters";
 import { saveUpload } from "@/lib/adapters/agentUploads";
 import { agentById, bedsBaths, commute, price } from "@/lib/recap";
 import { contactClient, nudgeFor, now, sendNudge, setCheck, setStatus, useStore, verifyLead } from "@/lib/store";
 import { aiDraft, aiFollowup } from "@/lib/ai";
+import { DEAL, dealTypeOf, fmtDay, fmtTime } from "@/lib/closing";
 import HomeArt from "@/components/HomeArt";
 import AerialView from "@/components/AerialView";
 import MapView, { LayerSwitch, type BaseLayer, type PinStatus } from "@/components/MapView";
@@ -34,6 +35,21 @@ export default function AgentApp() {
   const [compose, setCompose] = useState<string | null>(null);
   const leads = useStore((s) => s.leads);
   const lead = leads.find((l) => l.id === open);
+  // when a deal closes: back to the lead list, with a congratulations pop-up
+  const [cheer, setCheer] = useState<Lead | null>(null);
+  const closedSeen = useRef<Set<string> | null>(null);
+  const closedKey = leads.filter((l) => l.status === "closed").map((l) => l.id).join(",");
+  useEffect(() => {
+    const closed = closedKey ? closedKey.split(",") : [];
+    if (!closedSeen.current) { closedSeen.current = new Set(closed); return; }
+    const fresh = closed.find((id) => !closedSeen.current!.has(id));
+    closed.forEach((id) => closedSeen.current!.add(id));
+    const l = fresh && leads.find((x) => x.id === fresh);
+    if (l) {
+      setTimeout(() => { setOpen(null); setCompose(null); setTab("inbox"); setCheer(l); }, 900);
+    }
+    // eslint-disable-next-line react-hooks/exhaustive-deps
+  }, [closedKey]);
 
   useEffect(() => {
     const w = window as unknown as { pebbleAgent: Record<string, unknown> };
@@ -67,6 +83,7 @@ export default function AgentApp() {
       </nav>
       {lead && <LeadView lead={lead} onBack={() => setOpen(null)} onContact={() => setCompose(lead.id)} />}
       {compose && lead && <Composer lead={lead} onClose={() => setCompose(null)} />}
+      {cheer && <SaleCheer lead={cheer} onClose={() => setCheer(null)} />}
     </div>
   );
 }
@@ -108,6 +125,7 @@ function Inbox({ leads, onOpen, nudges, goNudges }: { leads: Lead[]; onOpen: (id
                 <div className="text-[13px] text-[#4A586D] line-clamp-2 leading-snug mt-0.5">{l.recap.summary}</div>
                 <div className="mt-1.5 flex items-center gap-2 text-[11px]">
                   <span className={`px-2 py-0.5 rounded-full font-semibold ${isNew ? "bg-coral text-white" : "bg-blush text-mute"}`}>{isNew ? "New lead" : STAGES.find((s) => s.id === l.status)?.label}</span>
+                  <span className="px-2 py-0.5 rounded-full bg-[#EDF3FE] text-[#3478F0] font-semibold">{DEAL[dealTypeOf(l)].label}</span>
                   {l.language && <span className="px-2 py-0.5 rounded-full bg-[#EFECFB] text-[#6655CC] font-semibold">{l.language} · translated</span>}
                   {isNew && now() - l.createdAt > 15 * 60000 && <span className="px-2 py-0.5 rounded-full bg-[#FBF1DC] text-[#A8710F] font-semibold">Waiting {Math.round((now() - l.createdAt) / 60000)} min</span>}
                   <span className="text-mute truncate">{home?.title}</span>
@@ -190,9 +208,10 @@ function LeadView({ lead, onBack, onContact }: { lead: Lead; onBack: () => void;
         {lead.language && (
           <div className="rounded-2xl bg-[#EFECFB] text-[#6655CC] p-3 text-[12px] leading-snug flex gap-2"><Icon name="chat" className="w-4 h-4 shrink-0" /><span>Client speaks <b>{lead.language}</b>. You read and write in English — Pebble translates both ways.</span></div>
         )}
+        {lead.messages.length > 0 && <Conversation lead={lead} />}
         {lead.status !== "new" && (
           <section className="rounded-3xl bg-white shadow-card p-4">
-            <div className="text-[13px] font-semibold mb-2">Deal</div>
+            <div className="text-[13px] font-semibold mb-2">Deal · {DEAL[dealTypeOf(lead)].label}</div>
             <div className="flex gap-2">
               {next[lead.status] && <button onClick={() => setStatus(lead.id, next[lead.status]![0])} className="flex-1 h-10 rounded-full bg-navy text-white text-[13px] font-semibold">{next[lead.status]![1]}</button>}
               {lead.status !== "closed" && <button onClick={() => setStatus(lead.id, "cancelled")} className="h-10 px-4 rounded-full border border-[#E1E7EF] text-[13px] font-medium text-mute flex items-center gap-1"><Icon name="archive" className="w-4 h-4" />Cancel</button>}
@@ -205,6 +224,55 @@ function LeadView({ lead, onBack, onContact }: { lead: Lead; onBack: () => void;
           <Icon name="check" className="w-5 h-5" stroke={2.6} />{lead.status === "new" ? "Verify" : "Verified"}
         </button>
         <button onClick={onContact} className="flex-1 py-3.5 rounded-full bg-navy text-white font-semibold text-[15px] flex items-center justify-center gap-1.5"><Icon name="phone" className="w-5 h-5" />Contact client</button>
+      </div>
+    </div>
+  );
+}
+
+/** The thread with the client, newest at the bottom (the demo closing writes into it too). */
+function Conversation({ lead }: { lead: Lead }) {
+  const end = useRef<HTMLDivElement>(null);
+  useEffect(() => { end.current?.scrollIntoView({ block: "nearest", behavior: "smooth" }); }, [lead.messages.length]);
+  return (
+    <section className="rounded-3xl bg-white shadow-card p-4">
+      <div className="text-[13px] font-semibold mb-2 flex items-center gap-1.5"><Icon name="chat" className="w-4 h-4" />Conversation</div>
+      <div className="max-h-72 overflow-y-auto no-scrollbar space-y-1.5">
+        {lead.messages.map((m, i) => m.milestone ? (
+          <div key={i} className="text-center"><span className="inline-block px-2.5 py-1 rounded-full bg-[#E6F4EC] text-[#2A8A5C] text-[11px] font-semibold">{m.text} · {fmtDay(m.at)}</span></div>
+        ) : (
+          <div key={i} className={`flex ${m.from === "client" ? "justify-start" : "justify-end"}`}>
+            <div className={`max-w-[85%] rounded-2xl px-3 py-2 text-[13px] leading-snug whitespace-pre-line ${m.from === "client" ? "bg-blush rounded-bl-md" : "bg-navy text-white rounded-br-md"}`}>
+              {m.text}
+              <div className={`mt-0.5 text-[10px] ${m.from === "client" ? "text-mute" : "text-white/60"}`}>{fmtDay(m.at)} · {fmtTime(m.at)}</div>
+            </div>
+          </div>
+        ))}
+        <div ref={end} />
+      </div>
+    </section>
+  );
+}
+
+/** Pop-up for the agent when one of their deals closes. */
+function SaleCheer({ lead, onClose }: { lead: Lead; onClose: () => void }) {
+  const home = getListing(lead.chosenListingId);
+  const deal = dealTypeOf(lead);
+  const me = agentById(lead.agentId).name.split(" ")[0];
+  const what = deal === "buy" ? "sale" : deal === "lease" ? "lease" : "rental";
+  return (
+    <div className="absolute inset-0 z-50 bg-black/40 flex items-center justify-center p-6 fadein" onClick={onClose}>
+      <div className="w-full rounded-[28px] bg-white p-6 text-center shadow-card rise" onClick={(e) => e.stopPropagation()}>
+        <div className="mx-auto w-16 h-16 rounded-full bg-[#E6F4EC] text-[34px] grid place-items-center" aria-hidden>🎉</div>
+        <div className="mt-4 text-[13px] text-mute">Congratulations, {me}!</div>
+        <h3 className="mt-1 text-[22px] font-bold leading-tight">You closed the {what}</h3>
+        <p className="mt-2 text-[14px] text-[#4A586D] leading-snug">
+          {lead.clientName} {deal === "buy" ? "bought" : deal === "lease" ? "signed a lease on" : "is renting"} <b>{home?.title ?? "the home"}</b>{lead.closedAt ? ` on ${fmtDay(lead.closedAt)}` : ""}.
+        </p>
+        <div className="mt-4 grid grid-cols-2 gap-2 text-left">
+          <div className="rounded-2xl bg-blush p-3"><div className="text-[11px] text-mute">{deal === "buy" ? "Price" : "Rent"}</div><div className="text-[15px] font-semibold">{home ? price(home) : "—"}</div></div>
+          <div className="rounded-2xl bg-blush p-3"><div className="text-[11px] text-mute">Your commission</div><div className="text-[15px] font-semibold text-[#2A8A5C]">${lead.dealValue.toLocaleString()}</div></div>
+        </div>
+        <button onClick={onClose} className="mt-5 w-full h-12 rounded-full bg-navy text-white font-semibold">Back to leads</button>
       </div>
     </div>
   );
