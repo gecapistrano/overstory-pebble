@@ -18,11 +18,11 @@ export default function CostarBadge({ l, className = "" }: { l: Listing; classNa
   }
   if (l.sqft) facts.push(`${l.sqft.toLocaleString("en-US")} sq ft`);
   return (
-    <div className={`rounded-2xl border border-[#efdfe0] px-3 py-2.5 ${className}`}>
+    <div className={`rounded-2xl border border-[#E1E7EF] px-3 py-2.5 ${className}`}>
       <div className="text-[11px] font-semibold tracking-wide text-mute uppercase">
         CoStar · {c.dataset === "residential-listings" ? "Homes.com MLS listing" : "Apartments.com community"}
       </div>
-      <div className="mt-1 text-[13px] text-[#4a4346] leading-snug">{facts.join(" · ")}</div>
+      <div className="mt-1 text-[13px] text-[#4A586D] leading-snug">{facts.join(" · ")}</div>
     </div>
   );
 }

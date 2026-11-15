@@ -2,11 +2,11 @@ import type { Agent, Criteria, Listing, LeadRecap } from "./types";
 import { marketOf, anchorShort } from "./markets";
 
 export const AGENTS: Agent[] = [
-  { id: "maya", name: "Maya Chen", title: "Licensed Real Estate Agent · Relocation", initials: "MC", color: "#E5322D" },
-  { id: "daniel", name: "Daniel Okafor", title: "Licensed Real Estate Agent · Rentals", initials: "DO", color: "#3B6FD8" },
-  { id: "priya", name: "Priya Raman", title: "Licensed Real Estate Agent · Downtown", initials: "PR", color: "#2E9E6A" },
+  { id: "maya", name: "Maya Chen", title: "Licensed Real Estate Agent · Relocation", initials: "MC", color: "#16325A" },
+  { id: "daniel", name: "Daniel Okafor", title: "Licensed Real Estate Agent · Rentals", initials: "DO", color: "#3478F0" },
+  { id: "priya", name: "Priya Raman", title: "Licensed Real Estate Agent · Downtown", initials: "PR", color: "#2A8A5C" },
   { id: "marcus", name: "Marcus Bell", title: "Broker associate · Homes & land", initials: "MB", color: "#C98A1B" },
-  { id: "elena", name: "Elena Russo", title: "Licensed Real Estate Agent · Commercial", initials: "ER", color: "#8B5BD6" },
+  { id: "elena", name: "Elena Russo", title: "Licensed Real Estate Agent · Commercial", initials: "ER", color: "#6655CC" },
 ];
 export const agentById = (id: string) => AGENTS.find((a) => a.id === id) || AGENTS[0];
 

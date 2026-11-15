@@ -6,7 +6,7 @@
  */
 "use client";
 import { useEffect, useState } from "react";
-import type { Criteria, Lead, LeadStatus, Listing } from "./types";
+import type { Consent, Criteria, CustomerProfile, Lead, LeadStatus, Listing, SearchEvent, ViewEvent } from "./types";
 import { dealValue, leadRecap } from "./recap";
 import { getListing } from "./adapters";
 
@@ -18,6 +18,10 @@ export interface PebbleState {
   approvedStrategies: string[];
   dismissedStrategies: string[];
   clockOffset: number; // demo "fast-forward"
+  // customer activity from the homebuyer app (older saved states may not have it)
+  searches?: SearchEvent[];
+  views?: ViewEvent[];
+  profiles?: Record<string, CustomerProfile>;
 }
 
 export const now = () => Date.now() + (read().clockOffset || 0);
@@ -141,6 +145,7 @@ export function createLead(p: { language?: string; clientName: string; transcrip
   const lead: Lead = {
     id,
     clientName: p.clientName,
+    customerId: sessionId() || undefined,
     clientPhone: "(713) 555-0142",
     language: p.language,
     createdAt: t,
@@ -247,4 +252,116 @@ export function nudgeFor(l: Lead): { text: string; draft: string } | null {
       ? `Hi ${first}, just checking in — your application is almost done. Only the income letter is missing. Want me to walk you through it?`
       : `Hi ${first}, ${home?.title ?? "the home"} is verified and still available. Would you like to book a tour this week?`;
   return { text: `${first} hasn't replied in ${days} days. Send this check-in?`, draft };
+}
+
+// ---------- Customer accounts + activity (homebuyer app → brokerage dashboard) ----------
+// Demo: accounts live in this browser's store with salted, hashed passwords. Production: an auth provider and a
+// database (see the pebble-production-data note). Activity is only recorded for signed-in customers who opted in.
+export const PRIVACY_VERSION = "2026-11-15";
+const SESSION = "pebble.session";
+
+export function sessionId(): string | null {
+  try { return localStorage.getItem(SESSION); } catch { return null; }
+}
+export function currentAccount(): CustomerProfile | null {
+  const id = sessionId();
+  return id ? read().profiles?.[id] || null : null;
+}
+export function useAccount(): CustomerProfile | null {
+  const [, force] = useState(0);
+  const acc = useStore((s) => { const id = sessionId(); return id ? s.profiles?.[id] || null : null; });
+  useEffect(() => {
+    const f = (e: StorageEvent) => e.key === SESSION && force((n) => n + 1);
+    window.addEventListener("storage", f);
+    return () => window.removeEventListener("storage", f);
+  }, []);
+  return acc;
+}
+/** The id that ties searches, views and leads together: the signed-in account. */
+export function customerId(): string {
+  return sessionId() || "guest";
+}
+
+async function hashPassword(password: string, salt: string) {
+  const data = new TextEncoder().encode(`${salt}:${password}`);
+  const buf = await crypto.subtle.digest("SHA-256", data);
+  return [...new Uint8Array(buf)].map((b) => b.toString(16).padStart(2, "0")).join("");
+}
+const normEmail = (e: string) => e.trim().toLowerCase();
+const findByEmail = (email: string) => Object.values(read().profiles || {}).find((p) => p.email && normEmail(p.email) === normEmail(email));
+
+export async function signUp(p: { name: string; email: string; password: string; age?: number; location?: string; phone?: string; consent: Omit<Consent, "version" | "updatedAt" | "terms"> & { terms: boolean } }): Promise<{ ok: true } | { ok: false; error: string }> {
+  if (!p.consent.terms) return { ok: false, error: "Please accept the Terms and Privacy Notice to create an account." };
+  if (findByEmail(p.email)) return { ok: false, error: "That email already has an account. Log in instead." };
+  if (p.password.length < 8) return { ok: false, error: "Use at least 8 characters for your password." };
+  const id = `cu-${Math.random().toString(36).slice(2, 10)}`;
+  const salt = Math.random().toString(36).slice(2) + Date.now().toString(36);
+  const passwordHash = await hashPassword(p.password, salt);
+  const t = now();
+  const consent: Consent = { version: PRIVACY_VERSION, terms: t, activity: p.consent.activity, contact: p.consent.contact, shareWithOwners: p.consent.shareWithOwners, updatedAt: t };
+  update((s) => {
+    s.profiles = { ...(s.profiles || {}), [id]: { id, name: p.name.trim(), email: normEmail(p.email), age: p.age, location: p.location?.trim(), phone: p.phone?.trim(), passwordHash, salt, consent, createdAt: t, updatedAt: t } };
+  });
+  try { localStorage.setItem(SESSION, id); } catch {}
+  update(() => undefined); // let every screen pick up the new session
+  return { ok: true };
+}
+export async function logIn(email: string, password: string): Promise<{ ok: true } | { ok: false; error: string }> {
+  const acc = findByEmail(email);
+  if (!acc?.salt || !acc.passwordHash || (await hashPassword(password, acc.salt)) !== acc.passwordHash) return { ok: false, error: "That email and password don't match." };
+  try { localStorage.setItem(SESSION, acc.id); } catch {}
+  update(() => undefined);
+  return { ok: true };
+}
+export function logOut() {
+  try { localStorage.removeItem(SESSION); } catch {}
+  update(() => undefined);
+}
+export function updateAccount(p: Partial<Pick<CustomerProfile, "name" | "age" | "location" | "phone">>) {
+  const id = sessionId();
+  if (!id) return;
+  update((s) => { const a = s.profiles?.[id]; if (a) s.profiles![id] = { ...a, ...p, updatedAt: now() }; });
+}
+export function updateConsent(c: Partial<Pick<Consent, "activity" | "contact" | "shareWithOwners">>) {
+  const id = sessionId();
+  if (!id) return;
+  update((s) => {
+    const a = s.profiles?.[id];
+    if (!a?.consent) return;
+    a.consent = { ...a.consent, ...c, updatedAt: now() };
+    // turning activity off also removes what was saved
+    if (c.activity === false) { s.searches = (s.searches || []).filter((x) => x.customerId !== id); s.views = (s.views || []).filter((x) => x.customerId !== id); }
+  });
+}
+/** Everything we hold about the signed-in customer, as JSON (right of access). */
+export function exportMyData(): string {
+  const id = sessionId();
+  const s = read();
+  const a = id ? s.profiles?.[id] : undefined;
+  if (!id || !a) return "{}";
+  const { passwordHash: _h, salt: _s, ...account } = a;
+  return JSON.stringify({ account, searches: (s.searches || []).filter((x) => x.customerId === id), views: (s.views || []).filter((x) => x.customerId === id), leads: s.leads.filter((l) => l.customerId === id) }, null, 2);
+}
+/** Deletes the account, its activity, and anonymizes its leads (right to erasure). */
+export function deleteAccount() {
+  const id = sessionId();
+  if (!id) return;
+  update((s) => {
+    if (s.profiles) delete s.profiles[id];
+    s.searches = (s.searches || []).filter((x) => x.customerId !== id);
+    s.views = (s.views || []).filter((x) => x.customerId !== id);
+    for (const l of s.leads) if (l.customerId === id) { l.clientName = "Deleted customer"; l.clientPhone = ""; l.customerId = undefined; }
+  });
+  logOut();
+}
+
+const cap = <T,>(a: T[], n: number) => (a.length > n ? a.slice(a.length - n) : a);
+const tracking = () => Boolean(currentAccount()?.consent?.activity);
+export function recordSearch(e: Omit<SearchEvent, "customerId" | "at">) {
+  if (!tracking()) return;
+  update((s) => void (s.searches = cap([...(s.searches || []), { ...e, customerId: customerId(), at: now() }], 500)));
+}
+export function recordView(listingId: string, ms: number) {
+  if (ms < 1500 || !tracking()) return; // a bounce, not a look
+  update((s) => void (s.views = cap([...(s.views || []), { listingId, ms: Math.round(ms), customerId: customerId(), at: now() }], 1000)));
 }

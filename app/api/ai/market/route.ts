@@ -9,6 +9,7 @@ import type { Lead, Listing } from "@/lib/types";
 import { generateJSON, FAST_MODEL } from "@/lib/gemini";
 import { handle } from "@/lib/ai-server";
 import { MARKET, cityMarket, opportunities } from "@/lib/market";
+import { hasVexcel, parcel } from "@/lib/vexcel";
 
 export const dynamic = "force-dynamic";
 
@@ -18,7 +19,8 @@ interface Out {
   suggestions: { listingId: string; headline: string; why: string; action: string }[];
 }
 
-const SYSTEM = `You are the market analyst for a residential real-estate brokerage. Data comes from CoStar (Homes.com MLS listings, Apartments.com rents, commercial sale comps, tenant employers).
+const SYSTEM = `You are the market analyst for a residential real-estate brokerage. Data comes from CoStar (Homes.com MLS listings, Apartments.com rents, commercial sale comps, tenant employers) and Vexcel aerial imagery AI (roof material/condition, footprint, pool, tree cover per parcel).
+When a candidate has Vexcel facts, use them where they matter (e.g. a roof showing heavy discoloration is a negotiation point or a repair question; a pool is a selling point).
 Write for the brokerage owner. Use ONLY the numbers provided; cite them. Texas does not disclose sale prices, so never claim Houston sold prices.
 Reply ONLY with JSON:
 {"recap": 3 sentences max: what the market is doing and what it means for this brokerage this week,
@@ -31,9 +33,14 @@ export async function POST(req: Request) {
   return handle(async () => {
     const m = cityMarket(city);
     const opps = opportunities(listings as unknown as Listing[], city, leads, 10);
-    const candidates = opps.map((o) => ({
+    // layer Vexcel parcel attributes onto the top candidates (cached on disk; skipped if Vexcel is slow or down)
+    const aerial = hasVexcel()
+      ? await Promise.all(opps.slice(0, 6).map((o) => Promise.race([parcel(o.listing.lat, o.listing.lng).catch(() => null), new Promise<null>((r) => setTimeout(() => r(null), 6000))])))
+      : [];
+    const candidates = opps.map((o, i) => ({
       id: o.listing.id, title: o.listing.title, kind: o.listing.kind, price: o.listing.price, beds: o.listing.beds,
       neighborhood: o.listing.neighborhood, minutesToDowntown: o.listing.minutesToCampus, has3DTour: Boolean(o.listing.matterportId), costarSignals: o.reasons,
+      vexcelAerial: aerial[i] ? { footprintSqft: aerial[i]!.footprintSqft, roof: [aerial[i]!.roofShape, aerial[i]!.roofMaterial].filter(Boolean).join(" ") || null, roofDiscolorationPct: aerial[i]!.roofDiscolorationPct, pool: aerial[i]!.pool, treeCoverPct: aerial[i]!.treeCoverPct, imageryDate: aerial[i]!.captured } : undefined,
     }));
     const pipeline = leads.filter((l) => !l.archived).map((l) => ({ status: l.status, budget: l.recap?.budget, summary: l.recap?.summary }));
     const out = await generateJSON<Out>(SYSTEM, [

@@ -17,7 +17,7 @@ export default function Gallery() {
             <div className="p-3">
               <div className="text-[13px] font-semibold truncate">{l.title}</div>
               <div className="text-[12px] text-mute">{price(l)} · {l.neighborhood}</div>
-              <div className="mt-1.5 flex flex-wrap gap-1">{[l.style, ...l.ambience, ...l.materials.slice(0, 2)].map((t) => <span key={t} className="px-1.5 py-0.5 rounded-md bg-blush text-[10px] text-[#6b6266]">{t}</span>)}</div>
+              <div className="mt-1.5 flex flex-wrap gap-1">{[l.style, ...l.ambience, ...l.materials.slice(0, 2)].map((t) => <span key={t} className="px-1.5 py-0.5 rounded-md bg-blush text-[10px] text-[#4A586D]">{t}</span>)}</div>
             </div>
           </div>
         ))}

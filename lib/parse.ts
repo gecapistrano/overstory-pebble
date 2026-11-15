@@ -5,6 +5,7 @@
  */
 import type { Criteria, ListingKind } from "./types";
 import { listingsSync } from "./adapters";
+import { STYLE_WORDS } from "./styles";
 
 export const emptyCriteria = (): Criteria => ({ vibes: [], neighborhoods: [] });
 
@@ -12,19 +13,14 @@ const NUM: Record<string, number> = { one: 1, two: 2, three: 3, four: 4, five: 5
 
 const VIBE_WORDS: [RegExp, string][] = [
   [/\b(cozy|cosy|homey|homely|snug|warm)\b/, "cozy"],
-  [/\b(arts?y|artistic|creative|arty|eclectic|bohemian|boho)\b/, "artsy"],
+  [/\b(arts?y|artistic|creative|arty)\b/, "artsy"],
   [/\b(lots of light|natural light|bright|sunny|sunlit|light[- ]filled|airy|big windows)\b/, "bright"],
-  [/\b(quiet|peaceful|calm|tranquil)\b/, "quiet"],
-  [/\b(modern|contemporary|sleek)\b/, "modern"],
-  [/\b(minimal|minimalist|clean lines)\b/, "minimalist"],
-  [/\b(gothic|stone)\b/, "gothic"],
-  [/\b(historic|old[- ]world|character|charming|classic)\b/, "historic"],
-  [/\bfarmhouse\b/, "modern farmhouse"],
+  [/\b(quiet|peaceful|calm|tranquil|serene)\b/, "quiet"],
+  [/\b(historic|old[- ]world|character|charming)\b/, "historic"],
   [/\b(garden|yard|green|leafy)\b/, "garden"],
-  [/\b(loft|industrial|exposed brick)\b/, "industrial"],
-  [/\b(scandi|scandinavian|nordic)\b/, "scandinavian"],
-  [/\bvictorian\b/, "victorian"],
-  [/\bcraftsman|bungalow\b/, "craftsman"],
+  [/\b(luxur(y|ious)|upscale|high[- ]end|glam(orous)?)\b/, "luxury"],
+  // design styles (lib/styles.ts): "boho", "MCM", "Japandi", "shiplap"… all land on the taxonomy
+  ...STYLE_WORDS,
 ];
 
 const MONTHS = ["january", "february", "march", "april", "may", "june", "july", "august", "september", "october", "november", "december"];

@@ -1,0 +1,9 @@
+.env*
+!.env.example
+*.bak
+_tmp
+video-tools
+.next
+node_modules
+.cache
+.next-*

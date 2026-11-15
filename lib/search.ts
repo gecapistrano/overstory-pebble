@@ -5,31 +5,50 @@
  */
 import type { Criteria, Listing } from "./types";
 import { DEMO_CITY } from "./markets";
+import { toStyle, type Style } from "./styles";
 
-const VIBE_SYNONYMS: Record<string, string[]> = {
+/** Feel words -> tags that count as a match (listing ambience + the scan's "feel"). */
+const FEEL_SYNONYMS: Record<string, string[]> = {
   cozy: ["cozy", "warm", "charming"],
   artsy: ["artsy", "creative"],
   bright: ["bright", "airy"],
   quiet: ["quiet", "calm"],
-  modern: ["contemporary", "minimalist", "sleek"],
-  minimalist: ["minimalist", "calm"],
-  gothic: ["gothic"],
-  historic: ["historic", "victorian", "gothic", "craftsman"],
-  urban: ["urban", "industrial"],
-  luxury: ["resort", "sleek"],
-  "modern farmhouse": ["modern farmhouse"],
+  historic: ["historic"],
+  urban: ["urban"],
+  luxury: ["resort", "sleek", "luxurious"],
   garden: ["leafy", "garden"],
-  industrial: ["industrial", "lofty", "urban"],
-  scandinavian: ["scandinavian"],
-  victorian: ["victorian"],
-  craftsman: ["craftsman"],
 };
 
+/** Styles that read as close cousins get partial credit (a Japandi seeker may like a Scandinavian home). */
+const NEAR: Partial<Record<Style, Style[]>> = {
+  modern: ["contemporary", "minimalist"], contemporary: ["modern", "transitional"], minimalist: ["modern", "japandi", "scandinavian"],
+  scandinavian: ["japandi", "minimalist", "coastal"], japandi: ["scandinavian", "minimalist"], industrial: ["modern"],
+  "mid-century modern": ["modern", "scandinavian"], traditional: ["transitional"], transitional: ["traditional", "contemporary", "modern farmhouse"],
+  bohemian: ["rustic", "coastal"], "modern farmhouse": ["rustic", "transitional"], coastal: ["scandinavian", "modern farmhouse"],
+  rustic: ["modern farmhouse"], "art deco": ["traditional"],
+};
+
+/**
+ * 0..~1.1 for how well a listing carries one vibe. A design style the Matterport scan
+ * actually saw (with the model's confidence) beats one guessed from listing text.
+ */
 export function vibeScore(l: Listing, vibe: string): number {
-  const tags = [l.style, ...l.ambience, ...l.materials];
-  const syn = VIBE_SYNONYMS[vibe] || [vibe];
+  const style = toStyle(vibe);
+  if (style && !FEEL_SYNONYMS[vibe]) {
+    const seen = l.interior?.styles || [];
+    const hit = seen.find((s) => s.name === style);
+    if (hit) return 0.3 + 0.8 * hit.confidence; // verified in the scan
+    const near = seen.find((s) => NEAR[style]?.includes(s.name as Style));
+    if (near) return 0.35 * near.confidence;
+    if (l.interior) return 0; // scanned, and it isn't that
+    const guessed = l.styles?.length ? l.styles : [l.style];
+    if (guessed.includes(style)) return 0.6; // text / photo guess, unverified
+    return guessed.some((g) => NEAR[style]?.includes(g as Style)) ? 0.2 : 0;
+  }
+  const tags = [l.style, ...l.ambience, ...l.materials, ...(l.interior?.feel || [])];
+  const syn = FEEL_SYNONYMS[vibe] || [vibe];
   let s = syn.some((x) => tags.includes(x)) ? 1 : 0;
-  if (vibe === "bright") s = Math.max(s * 0.6, l.light) ;
+  if (vibe === "bright") s = Math.max(s * 0.6, l.interior?.light ?? l.light);
   return s;
 }
 

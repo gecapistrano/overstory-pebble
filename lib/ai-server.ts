@@ -2,8 +2,10 @@
 import "server-only";
 import { NextResponse } from "next/server";
 import { hasGemini, MODEL } from "./gemini";
+import { STYLES } from "./styles";
 
-export const VIBES = ["cozy", "artsy", "bright", "quiet", "modern", "minimalist", "gothic", "historic", "modern farmhouse", "garden", "industrial", "scandinavian", "victorian", "craftsman"];
+/** What a client can ask for: the design styles (lib/styles.ts) plus feel words. */
+export const VIBES: string[] = [...STYLES, "cozy", "bright", "quiet", "artsy", "historic", "garden", "luxury", "urban"];
 
 export function noKey() {
   return NextResponse.json({ error: "no-key", message: "GEMINI_API_KEY is not set; the app falls back to on-device rules." }, { status: 503 });

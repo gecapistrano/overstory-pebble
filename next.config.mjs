@@ -3,6 +3,8 @@ import { fileURLToPath } from "node:url";
 const root = path.dirname(fileURLToPath(import.meta.url));
 /** @type {import('next').NextConfig} */
 const nextConfig = {
+  // separate build dir per dev server when several run side by side (e.g. NEXT_DIST_DIR=.next-alt)
+  distDir: process.env.NEXT_DIST_DIR || ".next",
   trailingSlash: true,
   images: { unoptimized: true },
   reactStrictMode: false,

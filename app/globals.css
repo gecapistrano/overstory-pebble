@@ -1,13 +1,37 @@
 @import "leaflet/dist/leaflet.css";
+@import "maplibre-gl/dist/maplibre-gl.css";
 @tailwind base;
 @tailwind components;
 @tailwind utilities;
 
-html, body { background: #FBF2F2; color: #1D1A1C; -webkit-font-smoothing: antialiased; }
-body { font-family: Inter, system-ui, sans-serif; }
+/* Broker-desk theme (from the OverStory frontend design): navy chrome, white panels, cool grey canvas,
+   one blue highlight, violet for AI. Inter for text, IBM Plex Mono for figures. */
+:root {
+  --ink: #253247;
+  --canvas: #F5F7FA;
+  --navy: #16325A;
+  --blue: #3478F0;
+  --line: #E1E7EF;
+  --ease: cubic-bezier(0.22, 1, 0.36, 1);
+}
+
+html, body { background: var(--canvas); color: var(--ink); -webkit-font-smoothing: antialiased; }
+body { font-family: Inter, system-ui, -apple-system, "Segoe UI", Roboto, Arial, sans-serif; }
+:focus-visible { outline: 2px solid var(--blue); outline-offset: 2px; }
+.num, .mono, .tabular-nums { font-variant-numeric: tabular-nums; }
 * { -webkit-tap-highlight-color: transparent; }
 .no-scrollbar::-webkit-scrollbar { display: none; }
 .no-scrollbar { scrollbar-width: none; }
+
+/* Smooth hover/selection changes everywhere. */
+button, a, [role="tab"] {
+  transition-property: color, background-color, border-color, box-shadow, transform, opacity;
+  transition-duration: 200ms;
+  transition-timing-function: var(--ease);
+}
+
+@keyframes pan { from { transform: scale(1.08) translate3d(0,0,0) } to { transform: scale(1.08) translate3d(-4%,0,0) } }
+.pan { animation: pan 18s ease-in-out infinite alternate; }
 
 @keyframes ring { 0% { transform: scale(1); opacity: .45 } 100% { transform: scale(2.1); opacity: 0 } }
 .ring { animation: ring 2.4s cubic-bezier(.2,.6,.3,1) infinite; }
@@ -17,20 +41,58 @@ body { font-family: Inter, system-ui, sans-serif; }
 @keyframes bar { 0%,100% { transform: scaleY(.25) } 50% { transform: scaleY(1) } }
 .bar { animation: bar 1s ease-in-out infinite; transform-origin: center; }
 
-@keyframes rise { from { opacity: 0; transform: translateY(14px) } to { opacity: 1; transform: none } }
-.rise { animation: rise .55s cubic-bezier(.2,.7,.2,1) both; }
+/* Entrance: drift up and fade in (stagger with style={{ animationDelay }}). */
+@keyframes rise { from { opacity: 0; transform: translateY(10px) scale(.99) } to { opacity: 1; transform: none } }
+.rise, .animate-rise { animation: rise .6s var(--ease) both; }
+@keyframes soft-fade { from { opacity: 0; transform: translateY(4px) } to { opacity: 1; transform: none } }
+.animate-soft { animation: soft-fade .35s var(--ease) both; }
 @keyframes fadein { from { opacity: 0 } to { opacity: 1 } }
 .fadein { animation: fadein .5s ease both; }
 @keyframes word { from { opacity: 0; filter: blur(4px); transform: translateY(4px) } to { opacity: 1; filter: none; transform: none } }
 .word { display: inline-block; animation: word .35s ease both; }
 @keyframes shimmer { 0% { background-position: -200px 0 } 100% { background-position: 200px 0 } }
-.shimmer { background: linear-gradient(90deg, #f6e4e5 0, #fff 50%, #f6e4e5 100%); background-size: 400px 100%; animation: shimmer 1.2s linear infinite; }
+.shimmer { background: linear-gradient(90deg, #EDF2F9 0, #FFFFFF 50%, #EDF2F9 100%); background-size: 400px 100%; animation: shimmer 1.2s linear infinite; }
+@keyframes float { 0%, 100% { transform: translateY(0) } 50% { transform: translateY(-4px) } }
+.animate-float { animation: float 3s ease-in-out infinite; }
 
-.pin { background: #fff; color: #1D1A1C; font: 600 12px Inter, sans-serif; padding: 4px 8px; border-radius: 999px; box-shadow: 0 2px 8px rgba(60,20,25,.18); white-space: nowrap; text-align: center; width: fit-content; transform: translateX(-50%); margin-left: 35px; }
-.pin-on { background: #E5322D; color: #fff; transform: translateX(-50%) scale(1.12); }
-.pin-campus { background: #1D1A1C; color: #fff; font: 600 11px Inter, sans-serif; padding: 3px 8px; border-radius: 6px; width: fit-content; white-space: nowrap; }
-.pin-3d { display: inline-block; margin-left: 3px; padding: 0 4px; border-radius: 4px; background: #1D1A1C; color: #fff; font-size: 9px; line-height: 14px; vertical-align: 1px; }
-.pin-on .pin-3d { background: #fff; color: #E5322D; }
-.pebble-tiles { filter: saturate(.55) brightness(1.04); }
-.leaflet-container { font-family: Inter, sans-serif; background: #F4EEEA; }
-.map-label { font: 600 11px Inter, sans-serif; color: #A79C98; text-align: center; letter-spacing: .02em; }
+/* Pebble mascot moods (components/Mascot.tsx) */
+.mascot { overflow: visible; }
+.mascot .eyes { transition: transform .3s var(--ease); transform-origin: 32px 30px; }
+.mascot .happy-eyes, .mascot .dots { display: none; }
+.mascot.thinking .eyes { transform: translate(-3px, -3px); }
+.mascot.thinking .dots { display: block; transform-origin: 32px 10px; animation: spin 1.2s linear infinite; }
+.mascot.happy .eyes { display: none; }
+.mascot.happy .happy-eyes { display: block; }
+.mascot.surprised .eyes { transform: scale(1.25); }
+.mascot.surprised { animation: jump .5s var(--ease); }
+@keyframes spin { to { transform: rotate(360deg) } }
+@keyframes jump { 30% { transform: translateY(-14px) } 60% { transform: translateY(0) } }
+
+@media (prefers-reduced-motion: reduce) {
+  .pan, .ring, .bar, .mascot, .mascot .dots, .animate-float, .rise, .animate-rise, .animate-soft { animation: none !important; }
+}
+
+/* map pins */
+.pin { background: #fff; color: #253247; font: 600 12px Inter, sans-serif; padding: 4px 8px; border-radius: 999px; box-shadow: 0 2px 8px rgba(22,50,90,.18); white-space: nowrap; text-align: center; width: fit-content; transform: translateX(-50%); margin-left: 35px; }
+.pin-on { background: #16325A; color: #fff; transform: translateX(-50%) scale(1.12); }
+.pin-campus { background: #253247; color: #fff; font: 600 11px Inter, sans-serif; padding: 3px 8px; border-radius: 6px; width: fit-content; white-space: nowrap; }
+.pin-3d { display: inline-block; margin-left: 3px; padding: 0 4px; border-radius: 4px; background: #253247; color: #fff; font-size: 9px; line-height: 14px; vertical-align: 1px; }
+.pin-on .pin-3d { background: #fff; color: #16325A; }
+/* agent map: deal-status pins */
+.pin-dot { display: inline-block; width: 8px; height: 8px; border-radius: 99px; margin-right: 5px; vertical-align: 0; }
+.pin-available .pin-dot { background: #2A8A5C; }
+.pin-active { background: #FBF1DC; }
+.pin-active .pin-dot { background: #E0702F; }
+.pin-sold { background: #EDF2F9; color: #66758C; }
+.pin-sold .pin-dot { background: #66758C; }
+.pin-st.pin-on { background: #16325A; color: #fff; }
+/* 3D map markers: MapLibre positions the outer element, so undo the Leaflet centering offset */
+.pin3d { cursor: pointer; }
+.pin3d .pin { transform: none; margin-left: 0; }
+.pin3d .pin-on { transform: scale(1.12); }
+.pebble-tiles { filter: saturate(.5) brightness(1.04); }
+.leaflet-container { font-family: Inter, sans-serif; background: #EEF2F7; }
+.map-label { font: 600 11px Inter, sans-serif; color: #8592A6; text-align: center; letter-spacing: .02em; }
+
+/* Headings in Inter, as in the teammate design: medium weight, slightly tight. */
+.font-display { font-weight: 500; letter-spacing: -0.01em; }
