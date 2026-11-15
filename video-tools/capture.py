@@ -3,7 +3,7 @@
 import asyncio, json, os, time
 from playwright.async_api import async_playwright
 
-OUT = "/home/claude/video/cap"
+OUT = os.path.join(os.path.dirname(os.path.abspath(__file__)), "video", "cap")
 os.makedirs(OUT, exist_ok=True)
 BASE = "http://localhost:3000"
 SAMPLE = "I'm starting a job at Princeton in August, need a cozy 2-bedroom under $3,000, walkable to campus, I have a dog"
@@ -141,7 +141,7 @@ async def main():
             await el.screenshot(path=f"{OUT}/art_{lid}.jpg", type="jpeg", quality=90); arts.append(f"cap/art_{lid}.jpg")
         manifest["arts"] = arts
         manifest["lead_id"] = lead_id
-        json.dump(manifest, open("/home/claude/video/cap/manifest.json", "w"), indent=0)
+        json.dump(manifest, open(os.path.join(OUT, "manifest.json"), "w"), indent=0)
         await b.close()
 
 asyncio.run(main())
