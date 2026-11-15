@@ -12,6 +12,7 @@ import { getListing } from "./adapters";
 
 const KEY = "pebble.state.v3-costar";
 const H = 3600_000;
+const SEEDED_LEAD_IDS = new Set(["ld-101", "ld-102", "ld-103", "ld-104", "ld-105", "ld-106", "ld-107", "ld-108", "ld-109"]);
 
 export interface PebbleState {
   leads: Lead[];
@@ -26,48 +27,8 @@ export interface PebbleState {
 
 export const now = () => Date.now() + (read().clockOffset || 0);
 
-function seedLeads(): Lead[] {
-  const t = Date.now();
-  const mk = (p: Partial<Lead> & { id: string; clientName: string; status: LeadStatus; listing: string; agentId: string; ageH: number; idleH: number; summary: string; budget: string }): Lead => {
-    const l = getListing(p.listing)!;
-    return {
-      id: p.id,
-      clientName: p.clientName,
-      clientPhone: "(713) 555-01" + p.id.slice(-2),
-      createdAt: t - p.ageH * H,
-      transcript: [],
-      criteria: { vibes: [], neighborhoods: [] },
-      recap: { summary: p.summary, budget: p.budget, timeline: "Within 60 days", mustHaves: [], niceToHaves: [] },
-      suggestions: [p.listing],
-      chosenListingId: p.listing,
-      status: p.status,
-      checklist: { available: p.status !== "new", price: p.status !== "new", fits: p.status !== "new", legal: p.status !== "new" },
-      agentId: p.agentId,
-      messages: [],
-      lastClientActivity: t - p.idleH * H,
-      nudgesSent: p.nudgesSent || 0,
-      rescuedByNudge: p.rescuedByNudge || false,
-      dealValue: l ? dealValue(l) : 0,
-      events: [{ at: t - p.ageH * H, label: "Voice request received", actor: "client" }],
-      archived: p.status === "cancelled",
-    };
-  };
-  return [
-    // Mock CRM pipeline (demo) on real CoStar listings in Houston
-    mk({ id: "ld-101", clientName: "James Liu", status: "new", listing: "cs-a14510408-0", agentId: "maya", ageH: 0.4, idleH: 0.4, summary: "Incoming Rice PhD student. Wants a quiet studio in the Heights, short ride downtown, no car.", budget: "Up to $1,400/mo" }),
-    mk({ id: "ld-102", clientName: "Ana Morales", status: "verified", listing: "cs-a184655-2", agentId: "elena", ageH: 20, idleH: 5, summary: "Engineer relocating from Madrid to Downtown Houston. Bright 2-bed near the bayou trails.", budget: "Up to $1,900/mo" }),
-    mk({ id: "ld-103", clientName: "The Okonkwo family", status: "touring", listing: "cs-r233681209", agentId: "marcus", ageH: 70, idleH: 8, summary: "Family of four. 3-bed Heights bungalow with a yard, near Hogg Middle School.", budget: "Up to $450k" }),
-    mk({ id: "ld-104", clientName: "Dev Mehta", status: "touring", listing: "cs-a176459-2", agentId: "maya", ageH: 96, idleH: 50, summary: "New hire at an energy firm downtown. Loft-style 2-bed, loves light.", budget: "Up to $2,100/mo" }),
-    mk({ id: "ld-105", clientName: "Tom Becker", status: "application", listing: "cs-a815594-1", agentId: "daniel", ageH: 120, idleH: 10, summary: "Nurse at the Medical Center with a beagle. Pet-friendly 1-bed.", budget: "Up to $1,500/mo", nudgesSent: 1, rescuedByNudge: true }),
-    mk({ id: "ld-106", clientName: "Kofi Mensah", status: "verified", listing: "cs-r239719430", agentId: "marcus", ageH: 40, idleH: 12, summary: "First-time buyer. Modern townhouse within 15 minutes of downtown.", budget: "Up to $400k" }),
-    mk({ id: "ld-107", clientName: "Lena Fischer", status: "closed", listing: "cs-r237029003", agentId: "priya", ageH: 300, idleH: 100, summary: "Bought a light-filled condo on Heights Blvd.", budget: "Up to $380k", nudgesSent: 2, rescuedByNudge: true }),
-    mk({ id: "ld-108", clientName: "Mei Tanaka", status: "closed", listing: "cs-a294077-1", agentId: "priya", ageH: 150, idleH: 100, summary: "Signed a 12-month lease on a Heights 1-bed.", budget: "Up to $1,250/mo" }),
-    mk({ id: "ld-109", clientName: "Hannah Wright", status: "cancelled", listing: "cs-a451420-2", agentId: "daniel", ageH: 200, idleH: 150, summary: "Decided to stay in Dallas.", budget: "Up to $2,500/mo" }),
-  ];
-}
-
 function initial(): PebbleState {
-  return { leads: seedLeads(), approvedStrategies: [], dismissedStrategies: [], clockOffset: 0 };
+  return { leads: [], approvedStrategies: [], dismissedStrategies: [], clockOffset: 0 };
 }
 
 let mem: PebbleState | null = null;
@@ -75,7 +36,11 @@ function read(): PebbleState {
   if (typeof window === "undefined") return mem || (mem = initial());
   try {
     const raw = localStorage.getItem(KEY);
-    if (raw) return (mem = JSON.parse(raw));
+    if (raw) {
+      const s = JSON.parse(raw) as PebbleState;
+      s.leads = (s.leads || []).filter((lead) => !SEEDED_LEAD_IDS.has(lead.id));
+      return (mem = s);
+    }
   } catch {}
   const s = initial();
   write(s, false);
@@ -83,13 +48,17 @@ function read(): PebbleState {
 }
 
 let chan: BroadcastChannel | null = null;
+let storageListenerInstalled = false;
 const listeners = new Set<() => void>();
 function channel() {
   if (typeof window === "undefined") return null;
   if (!chan && "BroadcastChannel" in window) {
     chan = new BroadcastChannel("pebble");
     chan.onmessage = () => listeners.forEach((f) => f());
+  }
+  if (!storageListenerInstalled) {
     window.addEventListener("storage", (e) => e.key === KEY && listeners.forEach((f) => f()));
+    storageListenerInstalled = true;
   }
   return chan;
 }

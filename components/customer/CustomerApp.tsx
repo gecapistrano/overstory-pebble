@@ -682,8 +682,7 @@ function Status({ lead, onBack }: { lead: Lead; onBack: () => void }) {
   const agent = agentById(lead.agentId);
   const order = ["new", "verified", "touring", "application", "closed"];
   const at = order.indexOf(lead.status);
-  const lastAgentMsg = [...lead.messages].reverse().find((m) => m.from === "agent");
-  const firstAgentMsg = lead.messages.find((m) => m.from === "agent");
+  const agentMessages = lead.messages.filter((m) => m.from === "agent");
   const steps = [
     { t: tr("sent"), d: "Your wishes and this home, summarized." },
     { t: at >= 1 ? `${tr("verifiedBy")} ${agent.name}` : tr("verifying"), d: at >= 1 ? "Available, price confirmed, a good fit." : "Checking availability, price and fit…" },
@@ -703,6 +702,14 @@ function Status({ lead, onBack }: { lead: Lead; onBack: () => void }) {
         <div className="min-w-0"><div className="font-display text-lg">{price(l)}</div><div className="text-sm truncate">{l.title}</div><div className="text-xs text-stone">{l.neighborhood}</div></div>
       </div>
       <div className="flex-1 overflow-y-auto no-scrollbar px-5 pt-6 pb-8">
+        {agentMessages.length > 0 && (
+          <div className="mb-5 rounded-3xl bg-sage-soft p-4">
+            <p className="mb-2 text-xs font-medium text-sage-ink">Message from {agent.name}</p>
+            <div className="space-y-2">
+              {agentMessages.map((message, i) => <p key={`${message.at}-${i}`} className="rounded-2xl bg-card px-3.5 py-2.5 text-[14px] leading-snug">{message.text}</p>)}
+            </div>
+          </div>
+        )}
         {steps.map((s, i) => {
           const done = i <= at;
           const current = i === at + 1;
@@ -717,18 +724,11 @@ function Status({ lead, onBack }: { lead: Lead; onBack: () => void }) {
               <div className="pb-5 flex-1">
                 <div className={`text-[16px] ${done || current ? "text-ink" : "text-[#8592A6]"}`}>{s.t}</div>
                 {s.d && <div className="text-[13px] text-stone mt-0.5">{s.d}</div>}
-                {i === 1 && at >= 1 && (
-                  <div className="mt-3 flex items-start gap-2.5 rise">
-                    <Avatar initials={agent.initials} color={agent.color} size={34} />
-                    <div className="rounded-2xl rounded-tl-md bg-card shadow-card px-3.5 py-2.5 text-[14px] leading-snug">{firstAgentMsg?.text || `Hi ${lead.clientName.split(" ")[0]}, I'm ${agent.name}. I checked this home in person, it's yours to see.`}</div>
-                  </div>
-                )}
                 {i === 2 && at === 1 && (
                   <div className="mt-3 flex gap-2 rise">{["Sat 10:00", "Sat 2:30", "Sun 11:00"].map((t) => <button key={t} onClick={() => bookTour(lead.id, t)} className="px-3 h-9 rounded-full bg-sage-soft text-sage-ink text-[13px]">{t}</button>)}</div>
                 )}
                 {i === 3 && at === 2 && (
                   <div className="mt-3 rise">
-                    {lastAgentMsg && lead.nudgesSent > 0 && <div className="mb-3 flex items-start gap-2.5"><Avatar initials={agent.initials} color={agent.color} size={30} /><div className="rounded-2xl rounded-tl-md bg-card shadow-card px-3.5 py-2.5 text-[14px] leading-snug">{lastAgentMsg.text}</div></div>}
                     <button onClick={() => submitApplication(lead.id)} className="h-11 px-5 rounded-full bg-clay text-white text-[14px]">{tr("startApp")}</button>
                   </div>
                 )}

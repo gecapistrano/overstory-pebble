@@ -1,19 +1,13 @@
 /**
- * Brokerage book: the numbers behind the dashboard.
+ * Brokerage dashboard metrics, derived from customer and agent app activity.
  *
  * Listings, prices, neighborhoods and market figures are real CoStar data (data/listings.json, data/market.json).
- * Sales, leads and customer activity are not available from CoStar, so they come from three layers that all have
- * the same shape and go through the same calculations:
- *   1. book  - 14 months of generated leads, deals and customer activity on the real CoStar listings
- *              (deterministic: the same history on every load)
- *   2. live  - a running layer that adds new requests, replies, views and the odd closed deal every 5 seconds
- *   3. app   - real leads, searches and listing views recorded by the homebuyer and agent apps
- * Every KPI, change, chart, agent row and customer figure is computed from these records, so they always agree.
+ * Sales, leads and customer activity come only from the app's shared browser store.
  */
 import listingsData from "@/data/listings.json";
 import type { Lead, Listing, LeadEvent } from "./types";
 import type { PebbleState } from "./store";
-import { AGENTS, dealValue } from "./recap";
+import { AGENTS } from "./recap";
 import { cityMarket } from "./market";
 
 export const LISTINGS = listingsData as unknown as Listing[];
@@ -22,13 +16,13 @@ export const listingById = (id: string) => BY_ID.get(id);
 export const CITIES = ["Houston", "Los Angeles"] as const;
 export type City = (typeof CITIES)[number];
 
-const MIN = 60_000, H = 60 * MIN, D = 24 * H;
+const MIN = 60_000, D = 24 * 60 * MIN;
 
 /* ---------------- records ---------------- */
 
 export interface Deal {
   id: string;
-  source: "book" | "live" | "app";
+  source: "app";
   city: string;
   agentId: string;
   listingId: string;
@@ -54,241 +48,7 @@ export interface Search { customerId: string; at: number; tags: string[]; neighb
 
 interface Layer { deals: Deal[]; customers: Customer[]; views: View[]; searches: Search[] }
 
-/* ---------------- deterministic helpers ---------------- */
-
-function rng(seed: number) {
-  return () => {
-    seed = (seed + 0x6d2b79f5) | 0;
-    let t = Math.imul(seed ^ (seed >>> 15), 1 | seed);
-    t = (t + Math.imul(t ^ (t >>> 7), 61 | t)) ^ t;
-    return ((t ^ (t >>> 14)) >>> 0) / 4294967296;
-  };
-}
-const hash = (s: string) => {
-  let h = 2166136261;
-  for (let i = 0; i < s.length; i++) h = Math.imul(h ^ s.charCodeAt(i), 16777619);
-  return h >>> 0;
-};
-type R = () => number;
-const pick = <T,>(r: R, a: readonly T[]) => a[Math.floor(r() * a.length)];
-const weighted = <T,>(r: R, a: readonly (readonly [T, number])[]) => {
-  let x = r() * a.reduce((s, [, w]) => s + w, 0);
-  for (const [v, w] of a) if ((x -= w) <= 0) return v;
-  return a[a.length - 1][0];
-};
-const normal = (r: R) => Math.sqrt(-2 * Math.log(r() || 1e-9)) * Math.cos(2 * Math.PI * r());
-
-const FIRST = ["Sarah", "Daniel", "Aisha", "Marco", "Emily", "Kenji", "Lucía", "Omar", "Grace", "Ravi", "Chloe", "Mateo", "Hannah", "Jamal", "Mei", "Lukas", "Priya", "Noah", "Zoe", "Tunde", "Elena", "Sam", "Isabel", "Ethan", "Nadia", "Leo", "Fatima", "Ben", "Ana", "Kwame", "Julia", "Arjun"];
-const LAST = ["Kim", "Nguyen", "Garcia", "Patel", "Johnson", "Okafor", "Rossi", "Chen", "Williams", "Haddad", "Silva", "Brown", "Tanaka", "Martinez", "Mensah", "Fischer", "Lopez", "Ali", "Cohen", "Park", "Davis", "Moreno", "Singh", "Walker", "Costa", "Ibrahim", "Reyes", "Wright"];
-const FROM_OUT = ["Austin, TX", "Dallas, TX", "Chicago, IL", "New York, NY", "San Francisco, CA", "Denver, CO", "Atlanta, GA", "Phoenix, AZ", "Seattle, WA", "San Diego, CA", "Miami, FL", "Madrid, Spain", "Mexico City, Mexico", "Seoul, South Korea", "Lagos, Nigeria", "Mumbai, India", "London, UK", "Toronto, Canada"];
-const LOCAL: Record<string, string> = { Houston: "Houston, TX", "Los Angeles": "Los Angeles, CA" };
-
-// agent mix per market and how they work (mean first-reply seconds, close-rate edge)
-const TEAM: Record<string, readonly (readonly [string, number])[]> = {
-  Houston: [["maya", 0.3], ["priya", 0.25], ["daniel", 0.25], ["marcus", 0.2]],
-  "Los Angeles": [["elena", 0.55], ["priya", 0.45]],
-};
-const STYLE: Record<string, { resp: number; edge: number }> = {
-  maya: { resp: 140, edge: 0.06 }, priya: { resp: 230, edge: 0.04 }, daniel: { resp: 320, edge: 0 }, marcus: { resp: 560, edge: 0.03 }, elena: { resp: 380, edge: -0.02 },
-};
-const VOLUME: Record<string, number> = { Houston: 165, "Los Angeles": 80 };
-const SEASON = [0.82, 0.86, 0.95, 1, 1.06, 1.18, 1.26, 1.3, 1.08, 0.98, 0.92, 0.84];
-const SPAN = 16; // months generated before the current one (the first 4 only warm up the pipeline)
-const ADOPTED = 9; // month index when the brokerage switched to Pebble (about 7 months ago)
-
-const cityListings = new Map<string, Listing[]>();
-const inCity = (city: string) => {
-  if (!cityListings.has(city)) cityListings.set(city, LISTINGS.filter((l) => (l.city || "Houston") === city && (l.kind === "rent" || l.kind === "buy")));
-  return cityListings.get(city)!;
-};
-
-/** What a customer looking at this home would have asked for. */
-function tagsFor(l: Listing, r: R): string[] {
-  const t = new Set<string>();
-  if (l.style) t.add(l.style.toLowerCase());
-  for (const a of l.ambience.slice(0, 2)) if (r() < 0.7) t.add(a.toLowerCase());
-  if (l.light > 0.7 && r() < 0.8) t.add("bright");
-  if (l.petFriendly && r() < 0.55) t.add("pet friendly");
-  if (l.minutesToCampus <= 15 && r() < 0.6) t.add("close to downtown");
-  if (l.beds >= 3 && r() < 0.6) t.add("room for a family");
-  if (l.kind === "buy" && r() < 0.25) t.add("yard");
-  return [...t].slice(0, 4);
-}
-
-function person(r: R, city: string, kind: Listing["kind"], idPrefix: string, source: Deal["source"]): Customer {
-  const first = pick(r, FIRST), last = pick(r, LAST);
-  const age = Math.round(Math.max(21, Math.min(72, kind === "buy" ? 38 + normal(r) * 9 : 29 + normal(r) * 6)));
-  return {
-    id: `${idPrefix}-${Math.floor(r() * 1e9).toString(36)}`,
-    name: `${first} ${last}`,
-    email: `${first}.${last}`.toLowerCase().normalize("NFD").replace(/[^a-z.]/g, "") + "@example.com",
-    age,
-    location: r() < 0.42 ? LOCAL[city] : pick(r, FROM_OUT),
-    city,
-    source,
-    contact: r() < 0.82,
-    owners: r() < 0.4,
-  };
-}
-
-/* ---------------- layer 1: the book ---------------- */
-
-function genMonth(city: string, y: number, m: number, i: number, out: Layer) {
-  const r = rng(hash(`${city}:${y}:${m}`));
-  const start = new Date(y, m, 1).getTime(), end = new Date(y, m + 1, 1).getTime();
-  const volume = Math.round(VOLUME[city] * SEASON[m] * (0.7 + 0.022 * i));
-  const pebble = i >= ADOPTED;
-  const recent = i >= SPAN - 3; // customer activity is kept for the last few months
-  const pool = inCity(city);
-  for (let j = 0; j < volume; j++) {
-    const listing = pick(r, pool);
-    const agentId = weighted(r, TEAM[city]);
-    const st = STYLE[agentId];
-    const createdAt = start + r() * (end - start);
-    const slow = pebble ? 1 + Math.max(0, SPAN - 4 - i) * 0.08 : 3.6 - i * 0.28;
-    const respSec = Math.max(25, st.resp * slow * Math.exp(normal(r) * 0.55));
-    const c = person(r, city, listing.kind, "bk", "book");
-    const d: Deal = {
-      id: `bk-${hash(`${city}${y}${m}${j}`).toString(36)}`, source: "book", city, agentId, listingId: listing.id, client: c.name, customerId: c.id,
-      value: dealValue(listing), createdAt, respondedAt: createdAt + respSec * 1000, rescued: false,
-    };
-    progress(d, r, { fast: respSec < 300, edge: st.edge, nudgeP: pebble ? 0.86 : 0.22, buy: listing.kind === "buy", scale: 1 });
-    out.deals.push(d);
-    if (recent) {
-      out.customers.push(c);
-      const searchAt = createdAt - (2 + r() * 70) * H;
-      out.searches.push({ customerId: c.id, at: searchAt, tags: tagsFor(listing, r), neighborhoods: [listing.neighborhood], city });
-      const looks = 1 + Math.floor(r() * 3);
-      for (let k = 0; k < looks; k++) out.views.push({ customerId: c.id, listingId: listing.id, at: searchAt + r() * (createdAt - searchAt + 2 * D), ms: (40 + r() * 380) * 1000 });
-      const others = 2 + Math.floor(r() * 4);
-      for (let k = 0; k < others; k++) {
-        const o = pick(r, pool);
-        out.views.push({ customerId: c.id, listingId: o.id, at: searchAt + r() * (createdAt - searchAt), ms: (8 + r() * 150) * 1000 });
-      }
-    }
-  }
-  if (!recent) return;
-  // shoppers who browse but have not asked for an agent yet
-  const browsers = Math.round(volume * 1.2);
-  for (let j = 0; j < browsers; j++) {
-    const first = pick(r, pool);
-    const c = person(r, city, first.kind, "bk", "book");
-    const at = start + r() * (end - start);
-    out.customers.push(c);
-    out.searches.push({ customerId: c.id, at, tags: tagsFor(first, r), neighborhoods: [first.neighborhood], city });
-    const looks = 1 + Math.floor(r() * 5);
-    for (let k = 0; k < looks; k++) {
-      const l = k === 0 ? first : r() < 0.5 ? first : pick(r, pool);
-      out.views.push({ customerId: c.id, listingId: l.id, at: at + k * (5 + r() * 600) * MIN / 10, ms: (6 + r() * 170) * 1000 });
-    }
-  }
-}
-
-/** Walks a lead through the pipeline. `scale` compresses time (1 = real time, live layer uses seconds). */
-function progress(d: Deal, r: R, o: { fast: boolean; edge: number; nudgeP: number; buy: boolean; scale: number }) {
-  const u = (ms: number) => ms * o.scale;
-  let t = d.respondedAt!;
-  if (r() > 0.6 + (o.fast ? 0.16 : 0) + o.edge) { d.lostAt = t + u((1 + r() * 48) * H); return; }
-  d.verifiedAt = t = t + u((0.3 + r() * 6) * H);
-  if (r() > 0.56 + o.edge) { d.lostAt = t + u((1 + r() * 4) * D); return; }
-  d.touredAt = t = t + u((1 + r() * 4) * D);
-  if (r() < 0.32) {
-    d.quietAt = t = t + u((2 + r() * 2) * D);
-    if (r() < o.nudgeP) {
-      d.nudgedAt = t = t + u((2 + r() * 20) * H);
-      if (r() < 0.42) d.rescued = true;
-      else { d.lostAt = t + u(5 * D); return; }
-    } else { d.lostAt = t + u(6 * D); return; }
-  }
-  if (r() > 0.55 + (o.fast ? 0.08 : 0)) { d.lostAt = t + u((1 + r() * 5) * D); return; }
-  d.appliedAt = t = t + u((0.5 + r() * 3) * D);
-  if (r() > (o.buy ? 0.64 : 0.78)) { d.lostAt = t + u((3 + r() * 10) * D); return; }
-  d.closedAt = t + u((o.buy ? 18 + r() * 22 : 2 + r() * 7) * D);
-}
-
-let bookCache: { key: number; layer: Layer } | null = null;
-function book(now: number): Layer {
-  const n = new Date(now);
-  const key = new Date(n.getFullYear(), n.getMonth(), 1).getTime();
-  if (bookCache?.key === key) return bookCache.layer;
-  const layer: Layer = { deals: [], customers: [], views: [], searches: [] };
-  for (const city of CITIES) for (let i = 0; i <= SPAN; i++) {
-    const d = new Date(n.getFullYear(), n.getMonth() - SPAN + i, 1);
-    genMonth(city, d.getFullYear(), d.getMonth(), i, layer);
-  }
-  bookCache = { key, layer };
-  return layer;
-}
-
-/* ---------------- layer 2: live activity ---------------- */
-
-const LKEY = "pebble.live.v1";
-interface Live extends Layer { day: string; last: number }
-let liveMem: Live | null = null;
-const today = (t: number) => new Date(t).toDateString();
-
-function loadLive(now: number): Live {
-  if (liveMem && liveMem.day === today(now)) return liveMem;
-  try {
-    const raw = typeof localStorage !== "undefined" ? localStorage.getItem(LKEY) : null;
-    if (raw) {
-      const s = JSON.parse(raw) as Live;
-      if (s.day === today(now)) return (liveMem = s);
-    }
-  } catch {}
-  return (liveMem = { day: today(now), last: now, deals: [], customers: [], views: [], searches: [] });
-}
-function saveLive(s: Live) {
-  const cap = <T,>(a: T[], n: number) => (a.length > n ? a.slice(a.length - n) : a);
-  s.deals = cap(s.deals, 160); s.customers = cap(s.customers, 400); s.views = cap(s.views, 1500); s.searches = cap(s.searches, 600);
-  try { localStorage.setItem(LKEY, JSON.stringify(s)); } catch {}
-}
-
-/** Advances the live layer by one 5-second beat (catching up a few beats after a pause). */
-export function tickLive(now: number) {
-  const s = loadLive(now);
-  const beats = Math.min(6, Math.floor((now - s.last) / 5000));
-  if (beats < 1) return;
-  const r = Math.random;
-  const recentBook = book(now).customers.slice(-400);
-  for (let b = 0; b < beats; b++) {
-    const t = s.last + (b + 1) * 5000;
-    const city = r() < 0.66 ? "Houston" : "Los Angeles";
-    const pool = inCity(city);
-    if (r() < 0.14) {
-      // a new request that becomes a lead (mostly rentals, so live fees stay realistic)
-      const rentals = pool.filter((l) => l.kind === "rent");
-      const listing = r() < 0.75 && rentals.length ? pick(r, rentals) : pick(r, pool);
-      const agentId = weighted(r, TEAM[city]);
-      const c = person(r, city, listing.kind, "lv", "live");
-      const respSec = 20 + r() * 130 * (STYLE[agentId].resp / 230);
-      const d: Deal = { id: `lv-${Math.floor(r() * 1e9).toString(36)}`, source: "live", city, agentId, listingId: listing.id, client: c.name, customerId: c.id, value: dealValue(listing), createdAt: t, respondedAt: t + respSec * 1000, rescued: false };
-      progress(d, r, { fast: respSec < 300, edge: STYLE[agentId].edge + 0.1, nudgeP: 0.9, buy: false, scale: 1 / 2400 }); // ~1 day of pipeline per 36 seconds
-      s.deals.push(d);
-      s.customers.push(c);
-      s.searches.push({ customerId: c.id, at: t - 60_000, tags: tagsFor(listing, r), neighborhoods: [listing.neighborhood], city });
-      s.views.push({ customerId: c.id, listingId: listing.id, at: t - 30_000, ms: (60 + r() * 300) * 1000 });
-    }
-    if (r() < 0.55) {
-      // someone looking at a home right now
-      const known = [...s.customers.filter((c) => c.city === city), ...recentBook.filter((c) => c.city === city)];
-      const c = known.length && r() < 0.7 ? pick(r, known) : null;
-      const who = c || person(r, city, "rent", "lv", "live");
-      if (!c) { s.customers.push(who); s.searches.push({ customerId: who.id, at: t, tags: tagsFor(pick(r, pool), r), neighborhoods: [pick(r, pool).neighborhood], city }); }
-      s.views.push({ customerId: who.id, listingId: pick(r, pool).id, at: t, ms: (8 + r() * 240) * 1000 });
-    }
-    if (r() < 0.25) {
-      const l = pick(r, pool);
-      const c = person(r, city, l.kind, "lv", "live");
-      s.customers.push(c);
-      s.searches.push({ customerId: c.id, at: t, tags: tagsFor(l, r), neighborhoods: [l.neighborhood], city });
-    }
-  }
-  s.last += beats * 5000;
-  saveLive(s);
-}
-
-/* ---------------- layer 3: real app data ---------------- */
+/* ---------------- app data ---------------- */
 
 function firstAt(l: Lead, test: (e: LeadEvent) => boolean) { return l.events.find(test)?.at; }
 function appLayer(st: PebbleState): Layer {
@@ -298,11 +58,11 @@ function appLayer(st: PebbleState): Layer {
     return {
       id: l.id, source: "app", city: listing?.city || "Houston", agentId: l.agentId, listingId: l.chosenListingId, client: l.clientName, customerId: l.customerId || `app-${l.id}`,
       value: l.dealValue, createdAt: l.createdAt, respondedAt: Number.isFinite(reply) ? reply : undefined,
-      verifiedAt: firstAt(l, (e) => /verified/i.test(e.label)) ?? (l.status !== "new" ? l.createdAt + H : undefined),
-      touredAt: firstAt(l, (e) => /tour booked/i.test(e.label)) ?? (["touring", "application", "closed"].includes(l.status) ? l.createdAt + D : undefined),
-      appliedAt: firstAt(l, (e) => /application submitted/i.test(e.label)) ?? (["application", "closed"].includes(l.status) ? l.createdAt + 2 * D : undefined),
-      closedAt: l.status === "closed" ? firstAt(l, (e) => /deal closed/i.test(e.label)) ?? l.lastClientActivity : undefined,
-      lostAt: l.status === "cancelled" ? firstAt(l, (e) => /cancelled/i.test(e.label)) ?? l.lastClientActivity : undefined,
+      verifiedAt: firstAt(l, (e) => /verified/i.test(e.label)),
+      touredAt: firstAt(l, (e) => /tour booked/i.test(e.label)),
+      appliedAt: firstAt(l, (e) => /application submitted/i.test(e.label)),
+      closedAt: l.status === "closed" ? firstAt(l, (e) => /deal closed/i.test(e.label)) : undefined,
+      lostAt: l.status === "cancelled" ? firstAt(l, (e) => /cancelled/i.test(e.label)) : undefined,
       nudgedAt: firstAt(l, (e) => /follow-up sent/i.test(e.label)),
       rescued: l.rescuedByNudge, events: l.events,
     };
@@ -433,12 +193,12 @@ function linear(ys: number[]) {
 }
 
 export function snapshot(st: PebbleState, city: string, now: number): Snapshot {
-  const b = book(now), lv = loadLive(now), app = appLayer(st);
+  const app = appLayer(st);
   const all: Layer = {
-    deals: [...b.deals, ...lv.deals, ...app.deals].filter((d) => d.city === city && d.createdAt <= now),
-    customers: [...b.customers, ...lv.customers, ...app.customers].filter((c) => c.city === city),
-    views: [...b.views, ...lv.views, ...app.views].filter((v) => v.at <= now && (listingById(v.listingId)?.city || "Houston") === city),
-    searches: [...b.searches, ...lv.searches, ...app.searches].filter((s) => s.at <= now && s.city === city),
+    deals: app.deals.filter((d) => d.city === city && d.createdAt <= now),
+    customers: app.customers.filter((c) => c.city === city),
+    views: app.views.filter((v) => v.at <= now && (listingById(v.listingId)?.city || "Houston") === city),
+    searches: app.searches.filter((s) => s.at <= now && s.city === city),
   };
   const n = new Date(now);
   const mStart = new Date(n.getFullYear(), n.getMonth(), 1).getTime();
@@ -506,8 +266,7 @@ export function snapshot(st: PebbleState, city: string, now: number): Snapshot {
   }).sort((x, y) => y.revenue - x.revenue);
 
   const latest = (d: Deal) => Math.max(...[d.createdAt, d.respondedAt, d.verifiedAt, d.touredAt, d.quietAt, d.nudgedAt, d.appliedAt, d.closedAt, d.lostAt].filter((t): t is number => typeof t === "number" && t <= now));
-  const feed = all.deals.filter((d) => d.source !== "book" || now - latest(d) < 5 * D)
-    .flatMap((d) => dealEvents(d, now)).sort((x, y) => y.at - x.at).slice(0, 14);
+  const feed = all.deals.flatMap((d) => dealEvents(d, now)).sort((x, y) => y.at - x.at).slice(0, 14);
 
   // ---------- customers (last 30 days vs the 30 before) ----------
   const c30 = now - 30 * D, c60 = now - 60 * D;
@@ -619,7 +378,7 @@ export function snapshot(st: PebbleState, city: string, now: number): Snapshot {
     sales: {
       revenue, revenuePrev: sum(prev), deals: cur.length, dealsPrev: prev.length, responseMs: respMs, responsePrevMs: respPrevMs,
       saved: signals.saved, savedPrev: prev.filter((d) => d.rescued).length, savedValue: signals.savedValue, pace, monthTotalPrev: full[full.length - 1],
-      months, forecastMethod: `This month: fees closed so far plus the ${inApplication.length} deals at application or offer, weighted by how often that stage closes (${Math.round(appCloseRate * 100)}%). Next months: a straight-line trend through the last 12 full months, nudged by this month. The shaded band is the range 8 in 10 months have fallen in around that trend.`,
+      months, forecastMethod: `Based only on closed app leads and the ${inApplication.length} leads currently at application or offer. The current pipeline uses a ${Math.round(appCloseRate * 100)}% close-rate estimate; future months extrapolate observed app data, so forecasts may be limited until there is enough history.`,
       agents, feed,
     },
     customers: {

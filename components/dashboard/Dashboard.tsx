@@ -6,13 +6,13 @@
  *   Customers - what shoppers search for, where they look, who they are, the most likely buyers/renters, and a
  *               per-property view for owners
  *   Market    - CoStar market data and the Gemini market recap (both collapsible)
- * Everything is recomputed every 5 seconds from lib/brokerage.ts.
+ * App activity updates arrive through the shared browser store; the clock refreshes every 5 seconds.
  */
 import Link from "next/link";
 import { useEffect, useMemo, useRef, useState, type ReactNode } from "react";
 import { Area, Bar, CartesianGrid, ComposedChart, Line, ResponsiveContainer, Tooltip, XAxis, YAxis } from "recharts";
 import { aiStrategy } from "@/lib/ai";
-import { CITIES, change, factsOf, fmtDur, fmtMoney, snapshot, tickLive, type Fact, type PropertyStats, type Shopper, type Snapshot } from "@/lib/brokerage";
+import { CITIES, change, factsOf, fmtDur, fmtMoney, snapshot, type Fact, type PropertyStats, type Shopper, type Snapshot } from "@/lib/brokerage";
 import { localStrategies, type Strategy } from "@/lib/strategy";
 import { getState, now, update, useStore } from "@/lib/store";
 import { Avatar, Icon, Logo } from "@/components/ui";
@@ -33,10 +33,9 @@ export default function Dashboard() {
   const approved = useStore((s) => s.approvedStrategies);
   const dismissed = useStore((s) => s.dismissedStrategies);
 
-  // every 5 seconds: advance the live layer and recompute everything
+  // Keep the displayed clock and relative activity times current.
   useEffect(() => {
-    tickLive(now());
-    const id = window.setInterval(() => { tickLive(now()); setBeat((b) => b + 1); }, TICK);
+    const id = window.setInterval(() => setBeat((b) => b + 1), TICK);
     return () => window.clearInterval(id);
   }, []);
   const snap = useMemo(() => snapshot(getState(), city, now()), [city, beat, leads, views, searches]);
@@ -63,7 +62,7 @@ export default function Dashboard() {
         <h1 className="font-display text-4xl md:text-5xl">Stonebridge Realty</h1>
         <p className="mt-2 text-sm text-stone flex items-center gap-2">
           <span className="relative flex w-2 h-2"><span className="absolute inset-0 rounded-full bg-positive animate-ping opacity-60" /><span className="relative w-2 h-2 rounded-full bg-positive" /></span>
-          Live · {new Date(snap.now).toLocaleDateString("en-US", { weekday: "long", month: "long", day: "numeric", year: "numeric" })} · {new Date(snap.now).toLocaleTimeString("en-US", { hour: "numeric", minute: "2-digit", second: "2-digit" })}
+          App activity · synced across tabs in this browser · {new Date(snap.now).toLocaleDateString("en-US", { weekday: "long", month: "long", day: "numeric", year: "numeric" })} · {new Date(snap.now).toLocaleTimeString("en-US", { hour: "numeric", minute: "2-digit", second: "2-digit" })}
         </p>
       </header>
 
@@ -233,6 +232,7 @@ function LiveFeed({ snap }: { snap: Snapshot }) {
             </div>
           </li>
         ))}
+        {!snap.sales.feed.length && <li className="text-sm text-stone">Customer and agent app activity will appear here when it happens.</li>}
       </ul>
     </Panel>
   );

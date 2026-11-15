@@ -116,6 +116,7 @@ function Inbox({ leads, onOpen, nudges, goNudges }: { leads: Lead[]; onOpen: (id
             </button>
           );
         })}
+        {!items.length && <p className="rounded-2xl bg-white p-4 text-[13px] text-mute">New leads submitted in the customer app will appear here.</p>}
       </div>
     </div>
   );
