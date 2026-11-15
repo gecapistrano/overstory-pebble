@@ -43,6 +43,8 @@ export function aiStatus() {
   return statusCache;
 }
 
+/** Any-language speech to text (Gemini hears which language was spoken). */
+export const aiTranscribe = (audio: string) => post<{ text: string; language: string }>("transcribe", { audio }, 30000);
 export const aiParse = (text: string, prev: Criteria, imageTags?: string[]) => post<AIParse>("parse", { text, prev, imageTags });
 export const aiVibe = async (images: string[], language?: string) => (await post<{ tags: VibeTags }>("vibe", { images, language }))?.tags ?? null;
 export const aiRecap = async (criteria: Criteria, transcript: string[], listing: Listing, language?: string) =>

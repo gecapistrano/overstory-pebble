@@ -11,17 +11,20 @@ const field = "h-12 w-full rounded-full border border-line bg-card px-4 text-[15
 
 function Screen({ title, sub, onBack, children }: { title: string; sub?: string; onBack?: () => void; children: ReactNode }) {
   return (
-    <div className="absolute inset-0 z-40 flex flex-col bg-canvas fadein">
-      <div className="px-5 pt-14 flex items-center justify-between">
-        {onBack ? <button onClick={onBack} className="text-sm text-stone">Back</button> : <span />}
-        <div className="flex items-center gap-1.5 text-[15px] font-semibold text-ink"><Mascot sparkle={false} className="h-7 w-7" />Pebble</div>
-        <span className="w-8" />
+    <div className="absolute inset-0 z-40 overflow-y-auto no-scrollbar bg-canvas fadein">
+      {/* one centered column: a phone screen on phones, a calm form under the desk bar on wider screens */}
+      <div className="mx-auto flex min-h-full w-full max-w-[480px] flex-col">
+        <div className="px-5 pt-[var(--notch,3.5rem)] flex items-center justify-between">
+          {onBack ? <button onClick={onBack} aria-label="Back" className="-ml-2 grid h-9 w-9 place-items-center rounded-full text-stone hover:bg-sand hover:text-ink"><Icon name="back" className="h-5 w-5" /></button> : <span className="w-9" />}
+          <div className="flex items-center gap-1.5 text-[15px] font-semibold text-ink md:invisible"><Mascot sparkle={false} className="h-7 w-7" />Pebble</div>
+          <span className="w-9" />
+        </div>
+        <div className="px-6 pt-6 md:pt-10">
+          <h2 className="font-display text-[28px] leading-tight">{title}</h2>
+          {sub && <p className="mt-1.5 text-[15px] text-stone">{sub}</p>}
+        </div>
+        <div className="flex-1 px-6 pt-5 pb-10">{children}</div>
       </div>
-      <div className="px-6 pt-6">
-        <h2 className="font-display text-[28px] leading-tight">{title}</h2>
-        {sub && <p className="mt-1.5 text-[15px] text-stone">{sub}</p>}
-      </div>
-      <div className="flex-1 overflow-y-auto no-scrollbar px-6 pt-5 pb-10">{children}</div>
     </div>
   );
 }
@@ -55,9 +58,9 @@ export function AuthFlow({ start = "welcome", reason, onDone, onClose }: { start
 
   if (mode === "welcome") {
     return (
-      <div className="absolute inset-0 z-40 flex flex-col items-center bg-canvas px-8 text-center fadein">
-        <div className="pt-16 flex items-center gap-2 text-[17px] font-semibold text-ink"><Mascot className="h-10 w-10 animate-float" />Pebble</div>
-        <div className="flex-1 w-full flex flex-col items-center justify-center -mt-6">
+      <div className="absolute inset-0 z-40 mx-auto flex flex-col items-center bg-canvas px-8 text-center fadein">
+        <div className="pt-[calc(var(--notch,3.5rem)+0.5rem)] flex items-center gap-2 text-[17px] font-semibold text-ink md:invisible"><Mascot className="h-10 w-10 animate-float" />Pebble</div>
+        <div className="flex-1 w-full max-w-[400px] flex flex-col items-center justify-center -mt-6">
           <h1 className="font-display text-[1.9rem] leading-tight">Say the house.<br />Find your home.</h1>
           <p className="mt-4 text-[15px] text-stone">{reason || "Make an account to save the homes you love and get matches that fit you better."}</p>
           <button onClick={() => setMode("signup")} className="mt-10 w-full h-14 rounded-full bg-clay text-white text-[17px]">Create an account</button>
@@ -96,7 +99,7 @@ export function AuthFlow({ start = "welcome", reason, onDone, onClose }: { start
           <input aria-label="Email" type="text" inputMode="email" autoComplete="email" value={d.email} onChange={set("email")} placeholder="Email" className={field} />
           <input aria-label="Password" type="password" autoComplete="new-password" value={d.password} onChange={set("password")} placeholder="Password" className={field} />
           <div className="flex gap-2.5">
-            <input aria-label="Age" inputMode="numeric" value={d.age} onChange={(e) => setD({ ...d, age: e.target.value.replace(/\D/g, "").slice(0, 3) })} placeholder="Age" className={`${field} w-24 shrink-0`} />
+            <input aria-label="Age" inputMode="numeric" value={d.age} onChange={(e) => setD({ ...d, age: e.target.value.replace(/\D/g, "").slice(0, 3) })} placeholder="Age" className={`${field} !w-24 shrink-0`} />
             <input aria-label="Where you live now" autoComplete="address-level2" value={d.location} onChange={set("location")} placeholder="Where you live now" className={field} />
           </div>
           <input aria-label="Phone (optional)" type="tel" autoComplete="tel" value={d.phone} onChange={set("phone")} placeholder="Phone (optional)" className={field} />
@@ -178,7 +181,7 @@ export function ProfileScreen({ account, onBack }: { account: CustomerProfile; o
       <div className="space-y-2.5">
         <input aria-label="Full name" value={edit.name} onChange={(e) => setEdit({ ...edit, name: e.target.value })} placeholder="Full name" className={field} />
         <div className="flex gap-2.5">
-          <input aria-label="Age" inputMode="numeric" value={edit.age} onChange={(e) => setEdit({ ...edit, age: e.target.value.replace(/\D/g, "").slice(0, 3) })} placeholder="Age" className={`${field} w-24 shrink-0`} />
+          <input aria-label="Age" inputMode="numeric" value={edit.age} onChange={(e) => setEdit({ ...edit, age: e.target.value.replace(/\D/g, "").slice(0, 3) })} placeholder="Age" className={`${field} !w-24 shrink-0`} />
           <input aria-label="Where you live now" value={edit.location} onChange={(e) => setEdit({ ...edit, location: e.target.value })} placeholder="Where you live now" className={field} />
         </div>
         <input aria-label="Phone" value={edit.phone} onChange={(e) => setEdit({ ...edit, phone: e.target.value })} placeholder="Phone" className={field} />
