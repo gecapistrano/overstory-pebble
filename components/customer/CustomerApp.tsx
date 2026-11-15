@@ -6,19 +6,21 @@ import { emptyCriteria, parseRequest, CHIPS } from "@/lib/parse";
 import { topThree } from "@/lib/search";
 import { isStyle } from "@/lib/styles";
 import { spokenRecap, price, commute, bedsBaths, vibeTag, agentById } from "@/lib/recap";
-import { listen, speak, speechSupported } from "@/lib/speech";
+import { listen, speak, canListen, blobToDataUrl, type MicProblem } from "@/lib/speech";
 import { detectLanguage, toEnglish, t, switchPrompt, recapIn, speechLang, LANG_NAME, EN, hasDict, registerLanguage, type Lang } from "@/lib/i18n";
-import { aiParse, aiRecap, aiTranslate } from "@/lib/ai";
+import { aiParse, aiRecap, aiTranslate, aiTranscribe } from "@/lib/ai";
 import { bookTour, createLead, recordSearch, recordView, setLeadRecap, submitApplication, updateAccount, updateConsent, useAccount, useStore } from "@/lib/store";
 import { AuthFlow, ProfileScreen, type AuthMode } from "@/components/customer/Account";
 import type { CustomerProfile } from "@/lib/types";
 import HomeArt from "@/components/HomeArt";
-import MapView from "@/components/MapView";
+import MapView, { BASE_LAYERS, type BaseLayer } from "@/components/MapView";
+import MapView3D from "@/components/MapView3D";
 import Tour3D from "@/components/Tour3D";
 import MatterportTour from "@/components/MatterportTour";
 import CostarBadge from "@/components/CostarBadge";
 import AerialView from "@/components/AerialView";
 import { Avatar, Icon } from "@/components/ui";
+import { useWide, DeskBar } from "@/components/customer/Desk";
 import Mascot, { type MascotState } from "@/components/Mascot";
 
 type View = "home" | "listening" | "thinking" | "results" | "detail" | "tour" | "status";
@@ -30,6 +32,8 @@ const SAMPLE = "I'm starting a job in downtown Houston in January, looking for a
 
 export default function CustomerApp() {
   const [view, setView] = useState<View>("home");
+  const [layer, setLayer] = useState<BaseLayer>("map");
+  const wide = useWide(); // laptop / desktop: the OverStory desk (navy bar, map, frosted panel)
   const [partial, setPartial] = useState("");
   const [level, setLevel] = useState(0);
   const [criteria, setCriteria] = useState<Criteria>(emptyCriteria());
@@ -59,6 +63,7 @@ export default function CustomerApp() {
   };
   const [leadId, setLeadId] = useState<string | null>(null);
   const [typeMode, setTypeMode] = useState(false);
+  const [micProblem, setMicProblem] = useState<MicProblem | null>(null);
   const [photo, setPhoto] = useState<string | null>(null);
   const [photoOnly, setPhotoOnly] = useState(false); // last turn was a photo that wasn't a home: no search ran
   const [lang, setLang] = useState<Lang>("en");
@@ -163,12 +168,31 @@ export default function CustomerApp() {
 
   const startListening = useCallback(() => {
     setPartial("");
+    setMicProblem(null);
+    setTypeMode(false);
     setView("listening");
-    if (!speechSupported()) {
+    if (!canListen()) {
+      setMicProblem("unsupported");
       setTypeMode(true);
       return;
     }
-    const h = listen({ lang: speechLang(langRef.current), onPartial: setPartial, onLevel: setLevel, onDone: (t) => process(t) });
+    const h = listen({
+      lang: speechLang(langRef.current),
+      onPartial: setPartial,
+      onLevel: setLevel,
+      onDone: (t) => process(t),
+      // any language: Gemini transcribes what was actually said; the live captions are only the fallback
+      onAudio: async (audio, live) => {
+        setPartial(live);
+        setView("thinking");
+        const heard = await blobToDataUrl(audio).then(aiTranscribe).catch(() => null);
+        const t = heard?.text?.trim() || live;
+        if (t) { setPartial(t); process(t); }
+        else { setMicProblem("no-speech"); setTypeMode(true); setView("listening"); }
+      },
+      // never fail silently: say what went wrong and offer typing right there
+      onError: (pr) => { setMicProblem(pr); setTypeMode(true); },
+    });
     stopRef.current = h.stop;
   }, [process]);
 
@@ -252,13 +276,45 @@ export default function CustomerApp() {
 
   return (
     <LangCtx.Provider value={lang}>
-    <div className="relative h-full w-full bg-canvas text-ink overflow-hidden" dir={lang === "ar" ? "rtl" : "ltr"} lang={lang}>
-      {view === "home" && <Home onMic={startListening} onSubmit={(t) => { setPartial(t); process(t); }} onPhoto={(f) => onPhoto(f)} />}
+    <div className="flex h-full w-full flex-col bg-canvas text-ink overflow-hidden" dir={lang === "ar" ? "rtl" : "ltr"} lang={lang}>
+      {wide && (
+        <DeskBar
+          onLogo={() => setView("home")}
+          account={account ? { initials: (account.name || "?").split(" ").map((w) => w[0]).slice(0, 2).join(""), name: account.name || "" } : null}
+          onAccount={() => (account ? setProfileOpen(true) : setAuth({ start: "login" }))}
+        />
+      )}
+      <div className="relative min-h-0 flex-1 overflow-hidden">
+      {wide && view !== "home" && view !== "tour" && (
+        <MapView3D
+          look="desk"
+          layer={layer}
+          listings={results}
+          selected={view === "detail" && detail ? detail.id : results[active]?.id}
+          onSelect={(id) => { const i = results.findIndex((r) => r.id === id); if (i >= 0) { setActive(i); if (view === "detail") setDetail(results[i]); } else { setDetail(getListing(id) || null); setView("detail"); } }}
+          className="absolute inset-0 z-0"
+        />
+      )}
+      {wide && view !== "home" && view !== "tour" && (
+        <div className="glass animate-rise absolute right-4 top-4 z-10 flex gap-[2px] !rounded-lg p-[3px]" role="group" aria-label="Base map">
+          {BASE_LAYERS.map((b) => (
+            <button key={b.id} onClick={() => setLayer(b.id)} aria-pressed={layer === b.id}
+              className={`rounded-md px-2.5 py-1 text-[12px] font-medium ${layer === b.id ? "bg-navy text-white" : "text-stone hover:text-ink"}`}>{b.label}</button>
+          ))}
+        </div>
+      )}
+      <div
+        className={wide && view !== "home" && view !== "tour" ? "glass animate-rise absolute bottom-4 left-4 top-4 z-10 w-[420px] max-w-[calc(100%-2rem)] overflow-hidden" : "absolute inset-0"}
+        style={wide ? ({ "--notch": "1.25rem" } as React.CSSProperties) : undefined}
+      >
+      <div className="relative h-full w-full">
+      {view === "home" && <Home wide={wide} onMic={startListening} onSubmit={(t) => { setPartial(t); process(t); }} onPhoto={(f) => onPhoto(f)} />}
       {view === "listening" && (
         <Listening
           partial={partial}
           level={level}
           typeMode={typeMode}
+          problem={micProblem}
           onStop={() => (stopRef.current ? stopRef.current() : process(partial))}
           onSubmit={(t) => { setTypeMode(false); process(t); }}
           onExample={() => { setTypeMode(false); simulate(SAMPLE); }}
@@ -275,7 +331,7 @@ export default function CustomerApp() {
           replyKey={replyKey}
           results={results}
           criteria={criteria}
-          showMap={showMap}
+          showMap={showMap && !wide}
           setShowMap={setShowMap}
           active={active}
           setActive={setActive}
@@ -292,7 +348,7 @@ export default function CustomerApp() {
       {view === "tour" && detail && (
         <div className="absolute inset-0 bg-sand">
           {detail.matterportId ? <MatterportTour modelId={detail.matterportId} title={detail.title} className="absolute inset-0" /> : <Tour3D listing={detail} className="absolute inset-0" />}
-          <div className="absolute top-12 left-4 right-4 flex items-center justify-between pointer-events-none">
+          <div className="absolute top-[calc(var(--notch,3.5rem)-0.5rem)] left-4 right-4 flex items-center justify-between pointer-events-none">
             <button onClick={() => setView(tourFrom)} className="pointer-events-auto w-10 h-10 rounded-full bg-card/90 shadow-card flex items-center justify-center"><Icon name="back" /></button>
             <div className="px-3 py-1.5 rounded-full bg-card/90 shadow-card text-xs">{detail.matterportId ? "Matterport 3D scan · via CoStar" : "Living room · drag to look around"}</div>
           </div>
@@ -303,9 +359,9 @@ export default function CustomerApp() {
       )}
       {view === "status" && lead && <Status lead={lead} onBack={() => setView("results")} />}
       {sheet && detail && account && <ShareSheet l={detail} account={account} onClose={() => setSheet(false)} onSend={sendLead} />}
-      {(view === "home" || view === "results") && !auth && !profileOpen && (
+      {!wide && view === "home" && !auth && !profileOpen && (
         <button onClick={() => (account ? setProfileOpen(true) : setAuth({ start: "login" }))} aria-label={account ? "Your profile" : "Log in"}
-          className="absolute top-12 right-4 z-30 h-9 min-w-9 px-3 rounded-full bg-card/95 text-ink shadow-card text-sm flex items-center justify-center gap-1.5">
+          className="absolute top-[calc(var(--notch,3.5rem)-0.5rem)] right-4 z-30 h-9 min-w-9 px-3 rounded-full bg-card/95 text-ink shadow-card text-sm flex items-center justify-center gap-1.5">
           {account ? <span className="w-6 h-6 -mx-1.5 rounded-full bg-sage text-white text-[11px] grid place-items-center">{(account.name || "?").split(" ").map((w) => w[0]).slice(0, 2).join("")}</span> : "Log in"}
         </button>
       )}
@@ -318,6 +374,9 @@ export default function CustomerApp() {
       {askLang && view === "results" && (
         <LangPrompt lang={askLang} onYes={() => switchLang(askLang)} onNo={() => { declined.current.add(askLang); setAskLang(null); }} />
       )}
+      </div>
+      </div>
+      </div>
     </div>
     </LangCtx.Provider>
   );
@@ -339,17 +398,21 @@ function PhotoPicker({ onPick, className, children, label }: { onPick: (f: File)
   );
 }
 
-/** Opening screen, in the OverStory intro layout: Pebble + badges, one line of story, then one request —
- *  typed, spoken, or a photo of a home they love — in a single white search bar, with example requests below. */
-function Home({ onMic, onSubmit, onPhoto }: { onMic: () => void; onSubmit: (t: string) => void; onPhoto: (f: File) => void }) {
+/** Opening screen: one big way in (talk), two small ones (photo, type). Nothing else to read. */
+function Home({ wide, onMic, onSubmit, onPhoto }: { wide: boolean; onMic: () => void; onSubmit: (t: string) => void; onPhoto: (f: File) => void }) {
   const tr = useT();
   const [q, setQ] = useState("");
-  const [err, setErr] = useState(false);
+  const [typing, setTyping] = useState(false);
   const [dragging, setDragging] = useState(false);
+  const examples = tr("examples").split("|");
+  const [ex, setEx] = useState(0);
+  useEffect(() => {
+    const id = setInterval(() => setEx((i) => (i + 1) % examples.length), 4500);
+    return () => clearInterval(id);
+  }, [examples.length]);
   const submit = (text: string) => {
     const v = text.trim();
-    if (!v) { setErr(true); return; }
-    onSubmit(v);
+    if (v) onSubmit(v);
   };
   const pickFile = (files: FileList | null | undefined) => {
     const f = files && Array.from(files).find((x) => x.type.startsWith("image/"));
@@ -357,7 +420,7 @@ function Home({ onMic, onSubmit, onPhoto }: { onMic: () => void; onSubmit: (t: s
   };
   return (
     <div
-      className="absolute inset-0 overflow-y-auto no-scrollbar bg-[radial-gradient(120%_70%_at_20%_0%,#1F3F6E_0%,#16325A_45%,#0C1C36_100%)] text-white"
+      className="absolute inset-0 overflow-y-auto no-scrollbar bg-[radial-gradient(120%_70%_at_50%_0%,#1F3F6E_0%,#16325A_45%,#0C1C36_100%)] text-white"
       onDragOver={(e) => { if (!e.dataTransfer.types.includes("Files")) return; e.preventDefault(); setDragging(true); }}
       onDragLeave={(e) => e.currentTarget === e.target && setDragging(false)}
       onDrop={(e) => { e.preventDefault(); setDragging(false); pickFile(e.dataTransfer.files); }}
@@ -367,60 +430,60 @@ function Home({ onMic, onSubmit, onPhoto }: { onMic: () => void; onSubmit: (t: s
           {tr("dropHere")}
         </div>
       )}
-      <div className="min-h-full flex flex-col px-6 pt-14 pb-8">
-        <div className="animate-rise flex flex-wrap items-center gap-2" style={{ animationDelay: "50ms" }}>
-          <Mascot className="h-12 w-12 animate-float" />
-          <span className="text-[19px] font-semibold tracking-[0.01em]">Pebble</span>
-          <span className="ml-0.5 rounded-full border border-violet-light/40 bg-violet-light/10 px-2 py-0.5 text-[11px] text-[#D9CFFF]">✦ {tr("aiPowered")}</span>
-        </div>
-
-        <div className="flex-1 flex flex-col justify-center py-8">
-          <h1 className="animate-rise text-[34px] font-semibold leading-[1.08] tracking-[-0.01em]" style={{ animationDelay: "150ms" }}>
-            {tr("tagline1")}<br />{tr("tagline2")}
-          </h1>
-          <p className="animate-rise mt-4 text-[15px] leading-relaxed text-white/75" style={{ animationDelay: "250ms" }}>{tr("introBody")}</p>
-
-          <form className="animate-rise mt-7" style={{ animationDelay: "380ms" }} onSubmit={(e) => { e.preventDefault(); submit(q); }}>
-            <div className="flex items-center gap-1.5 rounded-2xl bg-white p-1.5 pl-3.5 text-ink shadow-[0_20px_50px_-12px_rgba(0,0,0,0.45)]">
-              <span className="text-[17px] text-violet" aria-hidden="true">✦</span>
-              <input
-                value={q}
-                onChange={(e) => { setQ(e.target.value); setErr(false); }}
-                aria-label={tr("describe")}
-                placeholder={tr("describe")}
-                className="min-w-0 flex-1 bg-transparent py-2.5 text-[15px] placeholder:text-faint focus:outline-none"
-              />
-              <PhotoPicker onPick={onPhoto} label={tr("showPhoto")} className="grid h-11 w-11 shrink-0 place-items-center rounded-full border border-line text-stone hover:border-sage/50 hover:text-ink">
-                <svg viewBox="0 0 24 24" width="20" height="20" fill="none" stroke="currentColor" strokeWidth="1.7" strokeLinecap="round" strokeLinejoin="round" aria-hidden="true"><path d="M4 8h3l2-2.5h6L17 8h3v11H4z" /><circle cx="12" cy="13" r="3.6" /></svg>
-              </PhotoPicker>
-              {q.trim() ? (
-                <button type="submit" className="h-11 shrink-0 rounded-xl bg-navy px-4 text-[14px] font-medium text-white hover:bg-navy-700 active:scale-[.98]">{tr("ask")} →</button>
-              ) : (
-                <button type="button" onClick={onMic} aria-label={tr("tapTalk")} className="relative grid h-11 w-11 shrink-0 place-items-center rounded-xl bg-navy text-white hover:bg-navy-700 active:scale-95">
-                  <span className="ring absolute inset-0 rounded-xl bg-navy" />
-                  <Icon name="mic" className="relative h-5 w-5" stroke={1.8} />
-                </button>
-              )}
-            </div>
-            {err && <p className="mt-2 text-[13px] text-[#FFB4B4]">{tr("emptyAsk")}</p>}
-          </form>
-
-          <div className="animate-rise mt-4 flex flex-wrap gap-2" style={{ animationDelay: "480ms" }}>
-            {tr("examples").split("|").map((e) => (
-              <button key={e} type="button" onClick={() => submit(e)} className="rounded-full border border-white/25 bg-white/5 px-3 py-1.5 text-left text-[12.5px] text-white/85 hover:border-white/60 hover:bg-white/10">{e}</button>
-            ))}
+      <div className="mx-auto min-h-full max-w-[560px] flex flex-col items-center md:justify-center md:pb-16 px-6 pt-[var(--notch,3.5rem)] pb-10 text-center">
+        {!wide && (
+          <div className="animate-rise self-start flex items-center gap-2" style={{ animationDelay: "50ms" }}>
+            <Mascot className="h-9 w-9" sparkle={false} />
+            <span className="text-[17px] font-semibold">Pebble</span>
           </div>
-          <p className="animate-rise mt-4 text-[13px] leading-relaxed text-white/65" style={{ animationDelay: "530ms" }}>
-            {tr("orUpload")}{" "}
-            <PhotoPicker onPick={onPhoto} label={tr("showPhoto")} className="font-medium text-white underline decoration-white/40 underline-offset-4 hover:decoration-white">{tr("uploadPhoto")}</PhotoPicker>{" "}
-            {tr("dropHint")}
-          </p>
+        )}
+
+        <h1 className="animate-rise mt-14 md:mt-0 text-[30px] md:text-[44px] font-semibold leading-[1.12] tracking-[-0.01em]" style={{ animationDelay: "150ms" }}>
+          {tr("tagline1")}<br /><span className="text-white/70">{tr("tagline2")}</span>
+        </h1>
+
+        {/* primary: talk */}
+        <div className="animate-rise flex-1 md:flex-none flex flex-col items-center justify-center py-10 md:py-14" style={{ animationDelay: "280ms" }}>
+          <button type="button" onClick={onMic} aria-label={tr("tapTalk")}
+            className="relative grid h-[132px] w-[132px] place-items-center rounded-full bg-white text-navy shadow-[0_24px_60px_-12px_rgba(0,0,0,0.55)] hover:scale-[1.03] active:scale-95">
+            <span className="ring absolute inset-0 rounded-full bg-white/25" />
+            <span className="ring ring2 absolute inset-0 rounded-full bg-white/25" />
+            <Icon name="mic" className="relative h-12 w-12" stroke={1.7} />
+          </button>
+          <p className="mt-6 text-[17px] font-medium">{tr("tapTalk")}</p>
         </div>
 
-        <div className="animate-rise flex items-center justify-between gap-3 text-[12.5px] text-white/60" style={{ animationDelay: "600ms" }}>
-          <button type="button" onClick={onMic} className="font-medium text-white/85 underline decoration-white/30 underline-offset-4 hover:text-white">{tr("justTalk")}</button>
-          <span className="rounded-full border border-white/20 px-2 py-0.5 text-[11px] text-white/70">CoStar · Matterport</span>
-        </div>
+        {/* secondary: photo or type */}
+        {typing ? (
+          <form className="animate-soft w-full" onSubmit={(e) => { e.preventDefault(); submit(q); }}>
+            <div className="flex items-center gap-1.5 rounded-full bg-white p-1.5 pl-4 text-ink shadow-[0_20px_50px_-12px_rgba(0,0,0,0.45)]">
+              <input autoFocus value={q} onChange={(e) => setQ(e.target.value)} aria-label={tr("describe")} placeholder={tr("describe")}
+                className="min-w-0 flex-1 bg-transparent py-2 text-[15px] placeholder:text-faint focus:outline-none" />
+              <button type="submit" disabled={!q.trim()} aria-label={tr("ask")} className="grid h-10 w-10 shrink-0 place-items-center rounded-full bg-navy text-white disabled:opacity-40"><Icon name="send" className="h-[18px] w-[18px]" /></button>
+            </div>
+            <button type="button" onClick={() => { setTyping(false); setQ(""); }} className="mt-3 rounded-full px-3 py-1 text-[13px] font-medium text-white/80 hover:bg-white/10 hover:text-white">{tr("back")}</button>
+          </form>
+        ) : (
+          <div className="animate-rise flex items-start justify-center gap-10" style={{ animationDelay: "380ms" }}>
+            <div className="flex flex-col items-center gap-2">
+              <PhotoPicker onPick={onPhoto} label={tr("showPhoto")} className="grid h-14 w-14 place-items-center rounded-full border border-white/25 bg-white/10 hover:bg-white/20">
+                <svg viewBox="0 0 24 24" width="22" height="22" fill="none" stroke="currentColor" strokeWidth="1.7" strokeLinecap="round" strokeLinejoin="round" aria-hidden="true"><path d="M4 8h3l2-2.5h6L17 8h3v11H4z" /><circle cx="12" cy="13" r="3.6" /></svg>
+              </PhotoPicker>
+              <span className="text-[12px] text-white/65">{tr("photo")}</span>
+            </div>
+            <div className="flex flex-col items-center gap-2">
+              <button type="button" onClick={() => setTyping(true)} aria-label={tr("typeInstead")} className="grid h-14 w-14 place-items-center rounded-full border border-white/25 bg-white/10 hover:bg-white/20">
+                <Icon name="keyboard" className="h-[22px] w-[22px]" stroke={1.6} />
+              </button>
+              <span className="text-[12px] text-white/65">{tr("type")}</span>
+            </div>
+          </div>
+        )}
+
+        {/* one quiet example, tap to try it */}
+        <button key={ex} type="button" onClick={() => submit(examples[ex])} className="animate-soft mt-8 max-w-[300px] text-[12.5px] leading-snug text-white/50 hover:text-white/80">
+          “{examples[ex]}”
+        </button>
       </div>
     </div>
   );
@@ -437,7 +500,15 @@ function Waveform({ level, n = 24 }: { level: number; n?: number }) {
   );
 }
 
-function Listening({ partial, level, typeMode, onStop, onSubmit, onExample, onTalk, onPhoto, onClose }: { partial: string; level: number; typeMode: boolean; onStop: () => void; onSubmit: (t: string) => void; onExample: () => void; onTalk: () => void; onPhoto: (f: File) => void; onClose: () => void }) {
+const MIC_HELP: Record<MicProblem, string> = {
+  blocked: "Pebble can't use your microphone. Click the mic or lock icon in the address bar, allow the microphone, then tap Talk again. Or type it below.",
+  "no-mic": "No microphone found. Plug one in or check your sound settings, or type it below.",
+  service: "Voice isn't available in this browser right now. It works in Chrome, Edge and Safari. You can type it below.",
+  "no-speech": "I didn't hear anything. Tap Talk and try again, or type it below.",
+  unsupported: "This browser can't do voice. Open Pebble in Chrome, Edge or Safari to talk, or type it below.",
+};
+
+function Listening({ partial, level, typeMode, problem, onStop, onSubmit, onExample, onTalk, onPhoto, onClose }: { partial: string; level: number; typeMode: boolean; problem: MicProblem | null; onStop: () => void; onSubmit: (t: string) => void; onExample: () => void; onTalk: () => void; onPhoto: (f: File) => void; onClose: () => void }) {
   const tr = useT();
   const [t, setT] = useState("");
   const words = partial.split(" ").filter(Boolean);
@@ -449,6 +520,12 @@ function Listening({ partial, level, typeMode, onStop, onSubmit, onExample, onTa
       </div>
       {typeMode ? (
         <div className="flex-1 px-6 pt-8 flex flex-col">
+          {problem && (
+            <div role="status" className="mb-4 flex items-start gap-3 rounded-2xl bg-warning-soft px-4 py-3 text-[14px] leading-snug text-ink">
+              <Icon name="mic" className="mt-0.5 h-4 w-4 shrink-0 text-warning" />
+              <span>{MIC_HELP[problem]}</span>
+            </div>
+          )}
           <textarea autoFocus value={t} onChange={(e) => setT(e.target.value)} placeholder={tr("describe")} className="w-full h-44 rounded-3xl bg-card shadow-card p-5 font-display text-[22px] leading-snug outline-none resize-none placeholder:text-[#A9B5C6]" />
           <button onClick={onExample} className="self-start text-sm text-sage mt-3">{tr("example")}</button>
           <div className="mt-auto pb-10 space-y-4">
@@ -482,7 +559,7 @@ function Listening({ partial, level, typeMode, onStop, onSubmit, onExample, onTa
 function Thinking({ text, photo }: { text: string; photo: string | null }) {
   const tr = useT();
   return (
-    <div className="absolute inset-0 flex flex-col bg-canvas px-7 pt-14">
+    <div className="absolute inset-0 flex flex-col bg-canvas px-7 pt-[var(--notch,3.5rem)]">
       <Wordmark mood="thinking" />
       {photo && <img src={photo} alt="" className="mt-10 w-28 h-28 rounded-3xl object-cover shadow-card rise" />}
       {text && <p className="mt-10 font-display text-[22px] leading-snug text-[#8592A6]">{text}</p>}
@@ -531,12 +608,12 @@ function Results(p: {
   const send = () => { const t = typing.trim(); if (!t) return; setTyping(""); setTypeOpen(false); p.onSend(t); };
   return (
     <div className="absolute inset-0 flex flex-col bg-canvas">
-      <header className="flex items-center justify-between px-5 pb-1 pt-14">
-        <button onClick={p.onHome} className="text-sm text-stone">{tr("back")}</button>
-        <Wordmark />
-        <button onClick={() => p.setShowMap(!p.showMap)} className="text-sm text-sage">{p.showMap ? tr("homes") : tr("map")}</button>
+      <header className="flex items-center justify-between px-5 pb-1 pt-[var(--notch,3.5rem)]">
+        <button onClick={p.onHome} aria-label={tr("back")} className="-ml-2 grid h-9 w-9 place-items-center rounded-full text-stone hover:bg-sand hover:text-ink"><Icon name="back" className="h-5 w-5" /></button>
+        <Wordmark className="md:invisible" />
+        <button onClick={() => p.setShowMap(!p.showMap)} className="md:invisible rounded-full px-3 py-1.5 text-sm font-medium text-sage hover:bg-sage-soft">{p.showMap ? tr("homes") : tr("map")}</button>
       </header>
-      <p className="px-5 pt-4 pb-3 font-display text-2xl leading-snug" key={p.replyKey}>
+      <p className="px-5 pt-3 pb-3 font-display text-[20px] leading-snug" key={p.replyKey}>
         {words.map((w, i) => <span key={i} className="word mr-[0.24em]" style={{ animationDelay: `${i * 45}ms` }}>{w}</span>)}
       </p>
       <div className="flex gap-2 overflow-x-auto no-scrollbar px-4 pb-3">
@@ -574,7 +651,7 @@ function Results(p: {
       ) : (
         <div className="pt-3 pb-7 flex items-end justify-center gap-7">
           <div className="flex flex-col items-center gap-1">
-            <PhotoPicker onPick={p.onPhoto} label={tr("showPhoto")} className="w-14 h-14 rounded-full bg-sage text-white grid place-items-center shadow-card"><Icon name="image" className="w-6 h-6" stroke={1.8} /></PhotoPicker>
+            <PhotoPicker onPick={p.onPhoto} label={tr("showPhoto")} className="w-12 h-12 mb-[10px] rounded-full border border-line bg-card text-stone grid place-items-center hover:text-ink"><Icon name="image" className="w-5 h-5" stroke={1.6} /></PhotoPicker>
             <span className="text-[11px] text-stone">{tr("photo")}</span>
           </div>
           <div className="flex flex-col items-center gap-1">
@@ -582,7 +659,7 @@ function Results(p: {
             <span className="text-[11px] text-stone">{tr("talk")}</span>
           </div>
           <div className="flex flex-col items-center gap-1">
-            <button onClick={() => setTypeOpen(true)} aria-label={tr("typeInstead")} className="w-11 h-11 mb-[6px] rounded-full border border-line bg-card text-stone grid place-items-center"><Icon name="keyboard" className="w-5 h-5" stroke={1.6} /></button>
+            <button onClick={() => setTypeOpen(true)} aria-label={tr("typeInstead")} className="w-12 h-12 mb-[10px] rounded-full border border-line bg-card text-stone grid place-items-center hover:text-ink"><Icon name="keyboard" className="w-5 h-5" stroke={1.6} /></button>
             <span className="text-[11px] text-stone">{tr("type")}</span>
           </div>
         </div>
@@ -605,29 +682,24 @@ function Detail({ l, criteria, why, onBack, onTour, onTalk }: { l: Listing; crit
   return (
     <div className="absolute inset-0 flex flex-col bg-canvas">
       <div className="flex-1 overflow-y-auto no-scrollbar pb-28">
-        <button onClick={onBack} className="px-5 pb-3 pt-14 text-sm text-stone">{tr("back")}</button>
+        <button onClick={onBack} aria-label={tr("back")} className="mx-3 mb-2 mt-[calc(var(--notch,3.5rem)-0.5rem)] grid h-9 w-9 place-items-center rounded-full text-stone hover:bg-sand hover:text-ink"><Icon name="back" className="h-5 w-5" /></button>
         <div className="flex snap-x snap-mandatory gap-2 overflow-x-auto no-scrollbar px-4">
           {variants.map((v) => <div key={v} className="h-56 w-[88%] shrink-0 snap-center overflow-hidden rounded-[28px] bg-sand"><HomeArt listing={l} variant={v} className="w-full h-full" /></div>)}
         </div>
-        <div className="space-y-2 px-5 py-4">
+        <div className="space-y-1 px-5 pt-4 pb-4">
           <p className="font-display text-3xl">{price(l)}</p>
-          <h1 className="text-lg">{l.title}</h1>
-          <p className="text-sm text-stone">{l.neighborhood} · {l.address.split(",")[0]}</p>
-          <p className="text-sm">{bedsBaths(l)} · {l.minutesToCampus} {tr(l.commuteMode === "walk" ? "walk" : "drive")} · {l.petFriendly ? tr("petsOk") : tr("noPets")}</p>
-          <p className="text-sm text-sage">{vibeTag(l, criteria)}</p>
-          <CostarBadge l={l} className="!mt-3" />
+          <h1 className="text-[17px]">{l.title}</h1>
+          <p className="text-sm text-stone">{l.neighborhood} · {bedsBaths(l)} · {l.minutesToCampus} {tr(l.commuteMode === "walk" ? "walk" : "drive")}</p>
         </div>
         {(fits.length > 0 || why) && (
           <div className="mx-4 rounded-3xl bg-card p-4 shadow-card">
             <div className="text-[13px] text-stone mb-2">{tr("whyFits")}</div>
-            {why && <p className="font-display text-[17px] leading-snug mb-3">{why}</p>}
+            {why && <p className="font-display text-[16px] leading-snug mb-3">{why}</p>}
             <div className="flex flex-wrap gap-2">{fits.map((f) => <span key={f} className="flex items-center gap-1 px-3 py-1.5 rounded-full bg-sage-soft text-sage-ink text-[13px]"><Icon name="check" className="w-3.5 h-3.5" />{f}</span>)}</div>
           </div>
         )}
-        <p className="px-5 pt-5 text-[15px] leading-relaxed text-[#4A586D]">{l.description}</p>
-        {l.highlights.length > 0 && <div className="px-5 mt-4 flex flex-wrap gap-1.5">{l.highlights.map((h) => <span key={h} className="px-2.5 py-1 rounded-full bg-sand text-[12px] text-[#4A586D]">{h}</span>)}</div>}
         {/* the teammate's tour card: a slow-panning photo that opens the 3D walkthrough */}
-        <button onClick={onTour} className="relative mx-4 mt-6 block h-48 w-[calc(100%-2rem)] overflow-hidden rounded-[28px] bg-sand text-left">
+        <button onClick={onTour} className="relative mx-4 mt-4 block h-44 w-[calc(100%-2rem)] overflow-hidden rounded-[28px] bg-sand text-left">
           <HomeArt listing={l} variant="living" className="pan w-full h-full" />
           <div className="absolute inset-0 bg-gradient-to-t from-black/55 to-black/10" />
           <div className="absolute top-4 right-4 px-2.5 py-1 rounded-full bg-white/90 text-ink text-[12px] flex items-center gap-1"><Icon name="cube" className="w-3.5 h-3.5" />{tr("tour3d")}</div>
@@ -636,6 +708,10 @@ function Detail({ l, criteria, why, onBack, onTour, onTalk }: { l: Listing; crit
             <p className="text-xs text-white/85">{tr("tourBody")}</p>
           </div>
         </button>
+        <p className="px-5 pt-5 text-[14.5px] leading-relaxed text-[#4A586D]">{l.description}</p>
+        <p className="px-5 pt-2 text-[13px] text-stone">{l.address.split(",")[0]} · {l.petFriendly ? tr("petsOk") : tr("noPets")}</p>
+        {l.highlights.length > 0 && <div className="px-5 mt-3 flex flex-wrap gap-1.5">{l.highlights.map((h) => <span key={h} className="px-2.5 py-1 rounded-full bg-sand text-[12px] text-[#4A586D]">{h}</span>)}</div>}
+        <div className="px-4"><CostarBadge l={l} className="mt-5" /></div>
         <AerialView l={l} className="mx-4 mt-6" />
       </div>
       <div className="absolute bottom-0 left-0 right-0 p-4 pb-8 bg-gradient-to-t from-canvas via-canvas to-canvas/0">
@@ -694,7 +770,7 @@ function Status({ lead, onBack }: { lead: Lead; onBack: () => void }) {
   const headline = at >= 1 ? steps[Math.min(at, 4)].t : tr("verifying");
   return (
     <div className="absolute inset-0 flex flex-col bg-canvas">
-      <button onClick={onBack} className="self-start px-5 pb-2 pt-14 text-sm text-stone">{tr("back")}</button>
+      <button onClick={onBack} className="self-start px-5 pb-2 pt-[var(--notch,3.5rem)] text-sm text-stone">{tr("back")}</button>
       <div className="px-5 pb-2">
         <p className="font-display text-2xl leading-snug">{headline}</p>
       </div>
