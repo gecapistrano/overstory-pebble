@@ -40,13 +40,20 @@ export default function Hub() {
         <p className="mt-4 text-[18px] text-[#5b5357] max-w-xl">Pebble is a voice-first property concierge for brokerages, powered by an Agentic Assistant. <b className="text-ink">The Agentic Assistant suggests, a Real Estate Agent verifies.</b> We help brokerages close.</p>
 
         {/* The problem */}
-        <section className="mt-14" aria-labelledby="problem">
-          <div className="text-[12px] font-semibold text-coral uppercase tracking-wider">The problem</div>
-          <h2 id="problem" className="mt-1 text-[28px] md:text-[34px] leading-tight font-bold tracking-tight max-w-3xl">The buyer is lost in listings. The agent is losing the client.</h2>
+        <details className="group mt-10 rounded-3xl bg-white shadow-card">
+          <summary className="flex items-center justify-between gap-4 cursor-pointer list-none [&::-webkit-details-marker]:hidden p-5 sm:p-6">
+            <div>
+              <div className="text-[12px] font-semibold text-coral uppercase tracking-wider">Why Pebble?</div>
+              <div className="text-[17px] sm:text-[18px] font-bold">The problem, in 3 numbers</div>
+            </div>
+            <Icon name="chev" className="w-5 h-5 shrink-0 rotate-90 group-open:-rotate-90 transition" />
+          </summary>
+        <section className="px-5 sm:px-6 pb-6" aria-labelledby="problem">
+          <h2 id="problem" className="text-[24px] md:text-[30px] leading-tight font-bold tracking-tight max-w-3xl">The buyer is lost in listings. The agent is losing the client.</h2>
           <p className="mt-3 text-[16px] text-[#5b5357] max-w-3xl">Someone moves to a new city and scrolls through hundreds of listings, still unsure which house is the one. On the other side, an agent watches that client hesitate, stop replying, and drift away. That isn’t bad luck. It’s revenue walking out the door.</p>
           <div className="mt-6 grid md:grid-cols-3 gap-4">
             {STATS.map((s) => (
-              <figure key={s.n} className="rounded-3xl bg-white p-6 shadow-card flex flex-col">
+              <figure key={s.n} className="rounded-3xl bg-blush p-6 flex flex-col">
                 <div className="text-[12px] font-semibold text-mute">{s.side}</div>
                 <div className="mt-1 text-[48px] leading-none font-bold tracking-tight text-coral tabular-nums">{s.n}</div>
                 <p className="mt-3 text-[15px] leading-snug text-ink">{s.claim}</p>
@@ -59,9 +66,10 @@ export default function Hub() {
           </div>
           <p className="mt-5 text-[15px] text-[#5b5357] max-w-3xl"><b className="text-ink">Pebble’s answer:</b> listen → understand → verify → close. Clients just talk, in their own language. Licensed agents get the lead instantly with a recap, verify it, and follow up until the house becomes a home. Live today on CoStar listings in <b className="text-ink">Houston</b> and <b className="text-ink">Los Angeles</b>.</p>
         </section>
+        </details>
 
         {/* The walkthrough */}
-        <section className="mt-14" aria-labelledby="walkthrough">
+        <section className="mt-12" aria-labelledby="walkthrough">
           <div className="text-[12px] font-semibold text-coral uppercase tracking-wider">The walkthrough</div>
           <h2 id="walkthrough" className="mt-1 text-[28px] md:text-[34px] leading-tight font-bold tracking-tight">From “find me a house” to “welcome home”.</h2>
           <Link href="/demo" className="mt-6 flex items-center justify-between gap-4 rounded-3xl bg-ink text-white p-6">
